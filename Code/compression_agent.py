@@ -75,7 +75,7 @@ class CompressionAgent:
         # 5. Sparse Residual (The Fix)
         # Capture the remaining 10% error + outliers
         Residual = W - W_approx
-        sparse_thresh = torch.quantile(torch.abs(Residual), 0.90) # Keep top 20% outliers
+        sparse_thresh = torch.quantile(torch.abs(Residual), 0.90) # Keep top 10% outliers
         S_sparse = torch.where(torch.abs(Residual) > sparse_thresh, Residual, torch.zeros_like(Residual))
         
         # 6. Save the Components
@@ -118,5 +118,5 @@ class CompressionAgent:
 # MAIN EXECUTION
 # =================================================================
 if __name__ == "__main__":
-    agent = CompressionAgent(energy_threshold=0.60) # Keep 85% energy
+    agent = CompressionAgent(energy_threshold=0.95) # Keep 60% energy
     agent.run()
