@@ -1,5 +1,12 @@
 # LLM Compression using Kronecker Product Decomposition & Sparse Residuals
 
+## Team - D11
+
+Team Members :
+1.Hemanth SN - CB.SC.U4AIE24321 |
+2.Mahakisore M - CB.SC.U4AIE24333 |
+3.Yashwanth B - CB.SC.U4AIE24360
+
 ## 📌 Project Overview
 
 This project focuses on compressing Large Language Models (specifically GPT-2) by decomposing their weight matrices using Kronecker Products.
