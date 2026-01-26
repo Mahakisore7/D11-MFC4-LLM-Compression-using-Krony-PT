@@ -1,11 +1,14 @@
-# LLM Compression using Kronecker Product Decomposition & Sparse Residuals
+# Project Title : LLM Compression using Kronecker Product Decomposition & Sparse Residuals
+[🔗Base Paper Link](https://arxiv.org/abs/2412.12351)
 
 ## Team - D11
 
-Team Members :
-1.Hemanth SN - CB.SC.U4AIE24321 |
-2.Mahakisore M - CB.SC.U4AIE24333 |
-3.Yashwanth B - CB.SC.U4AIE24360
+| Team Members     | Roll Number |
+| ----------- | ----------- |
+| Hemanth SN     | CB.SC.U4AIE24321       |
+| Mahakisore M   | CB.SC.U4AIE24333        |
+| Yashwanth B   | CB.SC.U4AIE24360        |
+
 
 ## 📌 Project Overview
 
