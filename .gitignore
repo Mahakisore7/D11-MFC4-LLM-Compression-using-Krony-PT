@@ -10,3 +10,25 @@ Code/venv/
 # Ignore Python cache files (generated automatically)
 __pycache__/
 *.pyc
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+# Ignore log files
+*.log
+# Ignore dataset files
+data/
+data_raw/
+
+# Ignore system files
+.DS_Store
+
+# Ignore IDE specific files
+.vscode/
+.idea/
+
+# Ignore output folders
+output/
+results/
+plots/
+figures/
+
