@@ -15,7 +15,7 @@ def load_model():
     """
     print(f"\nLoading {MODEL_NAME} model... (This might take a minute)")
     try:
-        tokenizer = GPT2Tokenizer.from_pretrained(MODEL_NAME)
+        tokenizer = GPT2Tokenizer.from_pretrained(MODEL_NAME) 
         model = GPT2LMHeadModel.from_pretrained(MODEL_NAME)
         
         # Ensure model is in eval mode (standard for inference)
