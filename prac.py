@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-class KroneckerCompressionAgent:
+class KroneckerCompressionAgent:  
     def __init__(self, model, pruning_factor=0.1):
         """
         pruning_factor (float): How many "outliers" to keep in the Sparse Matrix.
