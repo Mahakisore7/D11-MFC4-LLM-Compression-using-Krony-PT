@@ -1,0 +1,7 @@
+# This file is used internally by FFMPEG.
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_product_visualization/1080p60/partial_movie_files/CompressionRatio/3529212410_2156009668_223132457.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_product_visualization/1080p60/partial_movie_files/CompressionRatio/3040924799_977500181_2378295281.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_product_visualization/1080p60/partial_movie_files/CompressionRatio/3040924799_3724557121_3077646470.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_product_visualization/1080p60/partial_movie_files/CompressionRatio/3040924799_3649372508_1337100567.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_product_visualization/1080p60/partial_movie_files/CompressionRatio/3040924799_588136945_2396401986.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_product_visualization/1080p60/partial_movie_files/CompressionRatio/3040924799_634017564_1299939312.mp4'

@@ -1,0 +1,7 @@
+# This file is used internally by FFMPEG.
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/SVDSpectrumAnalysis/3529212410_2366472992_223132457.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/SVDSpectrumAnalysis/3040924799_4074957901_1367114861.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/SVDSpectrumAnalysis/3040924799_2196185250_4163417505.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/SVDSpectrumAnalysis/3040924799_2257291108_3863619921.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/SVDSpectrumAnalysis/3040924799_2976458203_326732452.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/SVDSpectrumAnalysis/3040924799_634017564_2909248897.mp4'

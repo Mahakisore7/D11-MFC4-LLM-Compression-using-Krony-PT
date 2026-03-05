@@ -135,26 +135,26 @@ def show_file_structure():
     print("="*70 + "\n")
     
     structure = """
-├── kronecker_product_visualization.py
-│   └── 13 main visualization scenes
-│
-├── kronecker_advanced_scenes.py
-│   └── 7 advanced animation scenes
-│
-├── render_visualizations.py
-│   └── Rendering manager (interactive + CLI)
-│
-├── manim_config.py
-│   └── Color scheme, fonts, animation speeds
-│
-├── MANIM_GUIDE.md
-│   └── Complete guide with examples
-│
-├── quick_start.py
-│   └── This file
-│
-└── videos/
-    └── Output directory for rendered videos
++-- kronecker_product_visualization.py
+|   +-- 13 main visualization scenes
+|
++-- kronecker_advanced_scenes.py
+|   +-- 7 advanced animation scenes
+|
++-- render_visualizations.py
+|   +-- Rendering manager (interactive + CLI)
+|
++-- manim_config.py
+|   +-- Color scheme, fonts, animation speeds
+|
++-- MANIM_GUIDE.md
+|   +-- Complete guide with examples
+|
++-- quick_start.py
+|   +-- This file
+|
++-- videos/
+    +-- Output directory for rendered videos
     """
     
     print(structure)

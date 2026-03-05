@@ -1,0 +1,8 @@
+# This file is used internally by FFMPEG.
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/CompressionRateAnimation/3529212410_3916134646_223132457.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/CompressionRateAnimation/3040924799_3649372508_618426089.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/CompressionRateAnimation/3040924799_292644388_1738105668.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/CompressionRateAnimation/3040924799_689486910_1210562877.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/CompressionRateAnimation/3040924799_3649372508_2402186674.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/CompressionRateAnimation/3040924799_2408291595_1256447700.mp4'
+file 'file:C:/Users/mahakisore/Academics/SEM-4/MFC-4/Project/AI/LLM-Compression-using-Krony-PT/Python/Visualizations/media/videos/kronecker_advanced_scenes/1080p60/partial_movie_files/CompressionRateAnimation/3040924799_634017564_1324420224.mp4'
