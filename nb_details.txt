@@ -1,0 +1,2259 @@
+=== Comparisons.ipynb ===
+Total cells: 24
+--- CODE [0] ---
+import torch
+import torch.nn as nn
+import math
+import time
+import os
+import pandas as pd
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+--- CODE [1] ---
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
+  [STREAM OUT: Using device: cuda ]
+--- CODE [2] ---
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+tokenizer.pad_token = tokenizer.eos_token
+
+baseline_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+baseline_model.eval()
+
+print("Baseline loaded")
+  [STREAM OUT: Baseline loaded ]
+--- CODE [3] ---
+def kronecker_rank1(W, m1, m2, n1, n2):
+    """
+    W shape must be (m1*m2, n1*n2)
+    """
+
+    W = W.reshape(m1, m2, n1, n2)
+    W = W.permute(0, 2, 1, 3).reshape(m1*n1, m2*n2)
+
+    U, S, Vh = torch.linalg.svd(W, full_matrices=False)
+
+    u = U[:, 0]
+    v = Vh[0, :]
+    s = S[0]
+
+    A = (u * math.sqrt(s)).reshape(m1, n1)
+    B = (v * math.sqrt(s)).reshape(m2, n2)
+
+    return A.to(device), B.to(device)
+--- CODE [4] ---
+class KronLinear(nn.Module):
+    def __init__(self, A, B, bias, out_dim, in_dim):
+        super().__init__()
+        self.A = nn.Parameter(A)
+        self.B = nn.Parameter(B)
+        self.bias = nn.Parameter(bias.clone().to(device))
+
+        self.out_dim = out_dim
+        self.in_dim = in_dim
+
+        self.m1, self.n1 = A.shape
+        self.m2, self.n2 = B.shape
+
+    def forward(self, x):
+        batch, seq, dim = x.shape
+
+        x = x.reshape(batch*seq, self.n1, self.n2)
+        x = torch.matm
+--- CODE [5] ---
+def compress_one_layer(model, layer_idx):
+    block = model.transformer.h[layer_idx]
+
+    # -------- c_fc --------
+    W_fc = block.mlp.c_fc.weight.data.to(device)
+    b_fc = block.mlp.c_fc.bias.data.to(device)
+
+    # 3072 x 768
+    A_fc, B_fc = kronecker_rank1(
+        W_fc,
+        m1=48, m2=64,
+        n1=12, n2=64
+    )
+
+    block.mlp.c_fc = KronLinear(
+        A_fc, B_fc, b_fc,
+        out_dim=3072,
+        in_dim=768
+    )
+
+    # -------- c_proj --------
+    W_proj = block.mlp.c_proj.weigh
+--- CODE [6] ---
+compressed_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+compressed_model.eval()
+
+for i in range(12):
+    compress_one_layer(compressed_model, i)
+
+print("All layers compressed successfully.")
+  [STREAM OUT: All layers compressed successfully. ]
+--- CODE [7] ---
+dummy = tokenizer(
+    "Artificial intelligence is amazing.",
+    return_tensors="pt"
+).to(device)
+
+with torch.no_grad():
+    out = compressed_model(**dummy)
+
+print("Forward pass works. Logits shape:", out.logits.shape)
+  [STREAM OUT: Forward pass works. Logits shape: torch.Size([1, 6, 50257]) ]
+--- CODE [8] ---
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters())
+
+baseline_params = count_parameters(baseline_model)
+compressed_params = count_parameters(compressed_model)
+
+print("Baseline params:", baseline_params)
+print("Compressed params:", compressed_params)
+  [STREAM OUT: Baseline params: 124439808 Compressed params: 67928832 ]
+--- CODE [9] ---
+torch.save(baseline_model.state_dict(), "baseline.pt")
+torch.save(compressed_model.state_dict(), "compressed.pt")
+
+print("Baseline size MB:", os.path.getsize("baseline.pt")/1024**2)
+print("Compressed size MB:", os.path.getsize("compressed.pt")/1024**2)
+  [STREAM OUT: Baseline size MB: 474.753586769104 Compressed size MB: 259.18871784210205 ]
+--- CODE [10] ---
+def measure_latency(model, runs=50):
+    dummy = tokenizer(
+        "Artificial intelligence is amazing.",
+        return_tensors="pt"
+    ).to(device)
+
+    for _ in range(10):
+        with torch.no_grad():
+            model(**dummy)
+
+    torch.cuda.synchronize()
+    start = time.time()
+
+    for _ in range(runs):
+        with torch.no_grad():
+            model(**dummy)
+
+    torch.cuda.synchronize()
+    end = time.time()
+
+    return (end - start) / runs
+
+print("Baseline latency ms:", measure_late
+  [STREAM OUT: Baseline latency ms: 10.215764045715332 Compressed latency ms: 11.470017433166504 ]
+--- CODE [11] ---
+def tokens_per_sec(model, runs=50):
+    text = "Artificial intelligence is amazing."
+    dummy = tokenizer(text, return_tensors="pt").to(device)
+    tokens = dummy["input_ids"].shape[1]
+
+    torch.cuda.synchronize()
+    start = time.time()
+
+    for _ in range(runs):
+        with torch.no_grad():
+            model(**dummy)
+
+    torch.cuda.synchronize()
+    end = time.time()
+
+    return (tokens * runs) / (end - start)
+
+print("Baseline TPS:", tokens_per_sec(baseline_model))
+print("Compressed TPS:",
+  [STREAM OUT: Baseline TPS: 406.50516187308347 Compressed TPS: 466.0969598101076 ]
+--- CODE [12] ---
+import matplotlib.pyplot as plt
+import numpy as np
+--- CODE [13] ---
+baseline_params = 124439808
+compressed_params = 67928832
+
+baseline_size = 474.753586769104
+compressed_size = 259.18871784210205
+
+baseline_latency = 10.215764045715332
+compressed_latency = 11.470017433166504
+
+baseline_tps = 406.50516187308347
+compressed_tps = 466.0969598101076
+--- CODE [14] ---
+plt.figure()
+plt.bar(["Baseline", "Compressed"],
+        [baseline_params/1e6, compressed_params/1e6])
+
+plt.ylabel("Parameters (Millions)")
+plt.title("Parameter Count Comparison")
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [15] ---
+plt.figure()
+plt.bar(["Baseline", "Compressed"],
+        [baseline_size, compressed_size])
+
+plt.ylabel("Model Size (MB)")
+plt.title("Disk Storage Comparison")
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [16] ---
+plt.figure()
+plt.bar(["Baseline", "Compressed"],
+        [baseline_latency, compressed_latency])
+
+plt.ylabel("Latency (ms)")
+plt.title("Inference Latency Comparison")
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [17] ---
+plt.figure()
+plt.bar(["Baseline", "Compressed"],
+        [baseline_tps, compressed_tps])
+
+plt.ylabel("Tokens per Second")
+plt.title("Throughput Comparison")
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [18] ---
+plt.style.use("ggplot")
+param_reduction = (baseline_params - compressed_params) / baseline_params * 100
+size_reduction = (baseline_size - compressed_size) / baseline_size * 100
+
+plt.figure()
+plt.bar(["Parameter Reduction", "Size Reduction"],
+        [param_reduction, size_reduction])
+
+plt.ylabel("Reduction (%)")
+plt.title("Compression Effectiveness")
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [19] ---
+import matplotlib.pyplot as plt
+import numpy as np
+
+plt.style.use("ggplot")
+--- CODE [20] ---
+baseline_params = 124439808
+compressed_params = 67928832
+
+baseline_size = 474.753586769104
+compressed_size = 259.18871784210205
+
+baseline_latency = 10.215764045715332
+compressed_latency = 11.470017433166504
+
+baseline_tps = 406.50516187308347
+compressed_tps = 466.0969598101076
+--- CODE [21] ---
+# Normalize relative to baseline
+param_ratio = compressed_params / baseline_params
+size_ratio = compressed_size / baseline_size
+latency_ratio = compressed_latency / baseline_latency
+tps_ratio = compressed_tps / baseline_tps
+--- CODE [22] ---
+metrics = ["Parameters", "Disk Size", "Latency", "Tokens/sec"]
+
+baseline_values = [1, 1, 1, 1]
+compressed_values = [
+    param_ratio,
+    size_ratio,
+    latency_ratio,
+    tps_ratio
+]
+
+x = np.arange(len(metrics))
+width = 0.35
+
+fig, ax = plt.subplots()
+
+ax.bar(x - width/2, baseline_values, width, label="Baseline")
+ax.bar(x + width/2, compressed_values, width, label="Compressed")
+
+ax.set_ylabel("Relative Value (Baseline = 1)")
+ax.set_title("GPT-2 Compression Efficiency Dashboard")
+ax.set_xticks(x
+  [HAS PLOT/DISPLAY]
+
+=== Pre_Training.ipynb ===
+Total cells: 34
+--- CODE [0] ---
+import torch
+import torch.nn as nn
+import math
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+from torch.optim import AdamW
+from torch.cuda.amp import autocast, GradScaler
+from einops import rearrange
+
+device = torch.device("cuda")
+print("Using device:", device)
+print("GPU:", torch.cuda.get_device_name(0))
+
+  [STREAM OUT: Using device: cuda GPU: NVIDIA GeForce RTX 4050 Laptop GPU ]
+--- CODE [1] ---
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+tokenizer.pad_token = tokenizer.eos_token
+
+--- CODE [2] ---
+baseline_model = GPT2LMHeadModel.from_pretrained("gpt2")
+baseline_model.to(device)
+baseline_model.eval()
+
+  [EXEC RESULT]
+--- CODE [3] ---
+def kronecker_decompose(W, m, n, k=1):
+    out_dim, in_dim = W.shape
+    m2 = out_dim // m
+    n2 = in_dim // n
+
+    W_re = rearrange(
+        W,
+        '(m m2) (n n2) -> (m n) (m2 n2)',
+        m=m, m2=m2, n=n, n2=n2
+    )
+
+    U, S, V = torch.svd_lowrank(W_re, q=k)
+
+    A = rearrange(U, '(m n) k -> k m n', m=m, n=n)
+    B = rearrange(V, '(m2 n2) k -> k m2 n2', m2=m2, n2=n2)
+
+    scale = S.sqrt().view(-1, 1, 1)
+    return A * scale, B * scale
+
+--- CODE [4] ---
+def adaptive_normalize(W, A, B):
+    W_hat = torch.kron(A[0], B[0])
+    alpha = torch.norm(W, p="fro") / torch.norm(W_hat, p="fro")
+    return A * torch.sqrt(alpha), B * torch.sqrt(alpha)
+
+--- CODE [5] ---
+class KroneckerLinear(nn.Module):
+    def __init__(self, A, B, bias):
+        super().__init__()
+        self.A = nn.Parameter(A)
+        self.B = nn.Parameter(B)
+        self.bias = nn.Parameter(bias.clone())
+
+    def forward(self, x):
+        y = torch.matmul(x, self.A)
+        y = y.unsqueeze(-1) * self.B
+        y = y.reshape(y.shape[0], y.shape[1], -1)
+        return y + self.bias
+
+
+class KroneckerLinearProj(nn.Module):
+    def __init__(self, A, B, bias):
+        super().__init__()
+        
+--- CODE [6] ---
+def compress_one_layer(model, layer_idx):
+    block = model.transformer.h[layer_idx]
+
+    # c_fc
+    W_fc = block.mlp.c_fc.weight
+    b_fc = block.mlp.c_fc.bias
+
+    A_fc, B_fc = kronecker_decompose(W_fc, m=768, n=1536)
+    A_fc, B_fc = adaptive_normalize(W_fc, A_fc, B_fc)
+
+    block.mlp.c_fc = KroneckerLinear(
+        A_fc[0].to(device),
+        B_fc[0].to(device),
+        b_fc.to(device)
+    )
+
+    # c_proj
+    W_proj = block.mlp.c_proj.weight.T
+    b_proj = block.mlp.c_proj.bias
+
+    A_p, B_p
+--- CODE [7] ---
+compressed_model = GPT2LMHeadModel.from_pretrained("gpt2")
+compressed_model.to(device)
+
+for layer_idx in range(12):
+    compress_one_layer(compressed_model, layer_idx)
+
+compressed_model.eval()
+print("12-layer compressed model ready.")
+
+  [STREAM OUT: 12-layer compressed model ready. ]
+--- CODE [8] ---
+dataset = load_dataset("wikitext", "wikitext-2-raw-v1")
+
+--- CODE [9] ---
+def tokenize_function(examples):
+    return tokenizer(
+        examples["text"],
+        truncation=True,
+        max_length=128,
+        padding="max_length"
+    )
+
+tokenized_dataset = dataset.map(
+    tokenize_function,
+    batched=True,
+    remove_columns=["text"]
+)
+
+tokenized_dataset.set_format("torch")
+
+--- CODE [10] ---
+small_train = tokenized_dataset["train"].select(range(2000))
+small_eval = tokenized_dataset["validation"].select(range(500))
+
+train_loader = DataLoader(small_train, batch_size=16, shuffle=True)
+eval_loader = DataLoader(small_eval, batch_size=16)
+
+--- CODE [11] ---
+def evaluate_perplexity(model, dataloader):
+    model.eval()
+    total_loss = 0
+    total_batches = 0
+
+    with torch.no_grad():
+        for batch in dataloader:
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+
+            labels = input_ids.clone()
+            labels[attention_mask == 0] = -100
+
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                lab
+--- CODE [12] ---
+ppl_before = evaluate_perplexity(compressed_model, eval_loader)
+print("Compressed model perplexity (before training):", ppl_before)
+
+  [STREAM OUT: Compressed model perplexity (before training): 43022.01116073708 ]
+--- CODE [13] ---
+from torch.amp import autocast, GradScaler
+
+optimizer = AdamW(compressed_model.parameters(), lr=3e-5)
+scaler = GradScaler(device="cuda")
+
+compressed_model.train()
+
+for epoch in range(2):
+    total_loss = 0
+    steps = 0
+
+    for batch in train_loader:
+        input_ids = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+
+        labels = input_ids.clone()
+        labels[attention_mask == 0] = -100
+
+        optimizer.zero_grad()
+
+        with autocast(devic
+  [STREAM OUT: Epoch 1, Avg Loss: 6.743297393798828 Epoch 2, Avg Loss: 5.222992208480835 ]
+--- CODE [14] ---
+ppl_after = evaluate_perplexity(compressed_model, eval_loader)
+print("Compressed model perplexity (after training):", ppl_after)
+
+  [STREAM OUT: Compressed model perplexity (after training): 266.61058596099105 ]
+--- CODE [15] ---
+baseline_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+baseline_model.eval()
+
+baseline_ppl = evaluate_perplexity(baseline_model, eval_loader)
+print("Original GPT-2 perplexity:", baseline_ppl)
+
+  [STREAM OUT: Original GPT-2 perplexity: 60.27171013912783 ]
+--- CODE [16] ---
+import pandas as pd
+
+results_table = pd.DataFrame({
+    "Model": [
+        "Original GPT-2",
+        "Compressed (Before Training)",
+        "Compressed (After Training)"
+    ],
+    "Perplexity": [
+        baseline_ppl,
+        ppl_before,
+        ppl_after
+    ]
+})
+
+results_table
+
+  [EXEC RESULT]
+--- CODE [17] ---
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(6,4))
+plt.bar(results_table["Model"], results_table["Perplexity"])
+plt.xticks(rotation=20)
+plt.ylabel("Perplexity")
+plt.title("GPT-2 Compression Effect on Perplexity")
+plt.show()
+
+  [HAS PLOT/DISPLAY]
+--- CODE [18] ---
+loss_history = []
+
+compressed_model.train()
+
+for epoch in range(5):   # increase to 5 epochs
+    total_loss = 0
+    steps = 0
+    
+    for batch in train_loader:
+        input_ids = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+
+        labels = input_ids.clone()
+        labels[attention_mask == 0] = -100
+
+        optimizer.zero_grad()
+
+        with autocast(device_type="cuda"):
+            outputs = compressed_model(
+                input_ids=input_id
+  [STREAM OUT: Epoch 1, Avg Loss: 4.695080558776856 Epoch 2, Avg Loss: 4.28375514793396 Epoch 3, Avg Loss: 3.934297]
+--- CODE [19] ---
+plt.figure(figsize=(6,4))
+plt.plot(range(1, len(loss_history)+1), loss_history, marker="o")
+plt.xlabel("Epoch")
+plt.ylabel("Training Loss")
+plt.title("Recovery of Compressed GPT-2")
+plt.grid(True)
+plt.show()
+
+  [HAS PLOT/DISPLAY]
+--- CODE [20] ---
+# Create fresh GPT-2 baseline
+compressed_6 = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+compressed_6.eval()
+
+# Compress only first 6 layers
+for layer_idx in range(6):
+    compress_one_layer(compressed_6, layer_idx)
+
+print("Compressed first 6 FFN layers.")
+
+  [STREAM OUT: Compressed first 6 FFN layers. ]
+--- CODE [21] ---
+ppl_6_before = evaluate_perplexity(compressed_6, eval_loader)
+print("6-layer compressed perplexity (before training):", ppl_6_before)
+
+  [STREAM OUT: 6-layer compressed perplexity (before training): 10811.3524372256 ]
+--- CODE [22] ---
+from torch.optim import AdamW
+from torch.amp import autocast, GradScaler
+
+optimizer = AdamW(compressed_6.parameters(), lr=3e-5)
+scaler = GradScaler(device="cuda")
+
+compressed_6.train()
+
+loss_history_6 = []
+
+for epoch in range(5):
+    total_loss = 0
+    steps = 0
+    
+    for batch in train_loader:
+        input_ids = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+
+        labels = input_ids.clone()
+        labels[attention_mask == 0] = -100
+
+        opt
+  [STREAM OUT: Epoch 1, Avg Loss: 6.643198516845703 Epoch 2, Avg Loss: 4.94664900970459 Epoch 3, Avg Loss: 4.314396]
+--- CODE [23] ---
+ppl_6_after = evaluate_perplexity(compressed_6, eval_loader)
+print("6-layer compressed perplexity (after training):", ppl_6_after)
+
+  [STREAM OUT: 6-layer compressed perplexity (after training): 99.92972816386076 ]
+--- CODE [24] ---
+results_extended = pd.DataFrame({
+    "Model": [
+        "Original GPT-2",
+        "12-layer compressed (after train)",
+        "6-layer compressed (after train)"
+    ],
+    "Perplexity": [
+        baseline_ppl,
+        ppl_after,
+        ppl_6_after
+    ]
+})
+
+results_extended
+
+  [EXEC RESULT]
+--- CODE [25] ---
+import matplotlib.pyplot as plt
+plt.figure(figsize=(6,4))
+plt.bar(results_extended["Model"], results_extended["Perplexity"])
+plt.xticks(rotation=20)
+plt.ylabel("Perplexity")
+plt.title("Compression Depth vs Perplexity")
+plt.show()
+
+  [HAS PLOT/DISPLAY]
+--- CODE [26] ---
+compressed_last6 = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+compressed_last6.eval()
+
+print("Fresh GPT-2 model loaded.")
+  [STREAM OUT: Fresh GPT-2 model loaded. ]
+--- CODE [27] ---
+for layer_idx in range(6, 12):
+    compress_one_layer(compressed_last6, layer_idx)
+
+print("Compressed last 6 FFN layers.")
+  [STREAM OUT: Compressed last 6 FFN layers. ]
+--- CODE [28] ---
+ppl_last6_before = evaluate_perplexity(compressed_last6, eval_loader)
+print("Last-6 compressed perplexity (before training):", ppl_last6_before)
+  [STREAM OUT: Last-6 compressed perplexity (before training): 8362.98303141586 ]
+--- CODE [29] ---
+from torch.optim import AdamW
+from torch.amp import autocast, GradScaler
+
+optimizer = AdamW(compressed_last6.parameters(), lr=3e-5)
+scaler = GradScaler(device="cuda")
+
+compressed_last6.train()
+
+loss_history_last6 = []
+
+for epoch in range(5):
+    total_loss = 0
+    steps = 0
+    
+    for batch in train_loader:
+        input_ids = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+
+        labels = input_ids.clone()
+        labels[attention_mask == 0] = -100
+
+  [STREAM OUT: Epoch 1, Avg Loss: 5.213076873779297 Epoch 2, Avg Loss: 3.9982328376770018 Epoch 3, Avg Loss: 3.5430]
+--- CODE [30] ---
+ppl_last6_after = evaluate_perplexity(compressed_last6, eval_loader)
+print("Last-6 compressed perplexity (after training):", ppl_last6_after)
+  [STREAM OUT: Last-6 compressed perplexity (after training): 103.2233880146374 ]
+--- CODE [31] ---
+results_final = pd.DataFrame({
+    "Model": [
+        "Original GPT-2",
+        "12-layer compressed",
+        "First-6 compressed",
+        "Last-6 compressed"
+    ],
+    "Perplexity": [
+        baseline_ppl,
+        ppl_after,          # 12-layer
+        ppl_6_after,        # first-6
+        ppl_last6_after     # last-6
+    ]
+})
+
+results_final
+  [EXEC RESULT]
+--- CODE [32] ---
+plt.figure(figsize=(7,4))
+plt.bar(results_final["Model"], results_final["Perplexity"])
+plt.xticks(rotation=25)
+plt.ylabel("Perplexity")
+plt.title("Layer Position Sensitivity Under Kronecker Compression")
+plt.show()
+  [HAS PLOT/DISPLAY]
+
+=== Adaptive Normalization.ipynb ===
+Total cells: 29
+--- CODE [0] ---
+import torch
+import torch.nn as nn
+import math
+import time
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+--- CODE [1] ---
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
+  [STREAM OUT: Using device: cuda ]
+--- CODE [2] ---
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+tokenizer.pad_token = tokenizer.eos_token
+
+baseline_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+baseline_model.eval()
+
+print("Baseline GPT-2 loaded")
+  [STREAM OUT: Baseline GPT-2 loaded ]
+--- CODE [3] ---
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters())
+
+baseline_params = count_parameters(baseline_model)
+
+print("Baseline parameters:", baseline_params)
+  [STREAM OUT: Baseline parameters: 124439808 ]
+--- CODE [4] ---
+def kronecker_rank1(W, m1, m2, n1, n2):
+    
+    # reshape matrix
+    W = W.reshape(m1, m2, n1, n2)
+    
+    # rearrange for SVD
+    W = W.permute(0, 2, 1, 3).reshape(m1*n1, m2*n2)
+
+    # SVD
+    U, S, Vh = torch.linalg.svd(W, full_matrices=False)
+
+    u = U[:,0]
+    v = Vh[0,:]
+    s = S[0]
+
+    A = (u * math.sqrt(s)).reshape(m1, n1)
+    B = (v * math.sqrt(s)).reshape(m2, n2)
+
+    return A.to(device), B.to(device)
+--- CODE [5] ---
+def adaptive_normalization(W_original, W_kron):
+
+    norm_original = torch.norm(W_original, p="fro")
+    norm_kron = torch.norm(W_kron, p="fro")
+
+    alpha = norm_original / norm_kron
+
+    return alpha * W_kron
+--- CODE [6] ---
+class KronLinear(nn.Module):
+
+    def __init__(self, A, B, bias, out_dim):
+
+        super().__init__()
+
+        self.A = nn.Parameter(A)
+        self.B = nn.Parameter(B)
+        self.bias = nn.Parameter(bias.clone().to(device))
+
+        self.out_dim = out_dim
+
+        self.m1, self.n1 = A.shape
+        self.m2, self.n2 = B.shape
+
+    def forward(self, x):
+
+        batch, seq, dim = x.shape
+
+        x = x.reshape(batch*seq, self.n1, self.n2)
+
+        x = torch.matmul(x, self.B.t())
+
+        x = t
+--- CODE [7] ---
+def compress_one_layer(model, layer_idx):
+
+    block = model.transformer.h[layer_idx]
+
+    # -------- c_fc --------
+
+    W_fc = block.mlp.c_fc.weight.data.to(device)
+    b_fc = block.mlp.c_fc.bias.data.to(device)
+
+    A_fc, B_fc = kronecker_rank1(
+        W_fc,
+        m1=48, m2=64,
+        n1=12, n2=64
+    )
+
+    W_kron_fc = torch.kron(A_fc, B_fc)
+
+    W_kron_fc = adaptive_normalization(W_fc, W_kron_fc)
+
+    block.mlp.c_fc = KronLinear(A_fc, B_fc, b_fc, out_dim=3072)
+
+
+    # -------- c_proj ---
+--- CODE [8] ---
+compressed_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+compressed_model.eval()
+
+for i in range(12):
+    compress_one_layer(compressed_model, i)
+
+print("All layers compressed")
+  [STREAM OUT: All layers compressed ]
+--- CODE [9] ---
+dummy = tokenizer(
+    "Artificial intelligence is amazing.",
+    return_tensors="pt"
+).to(device)
+
+with torch.no_grad():
+    out = compressed_model(**dummy)
+
+print("Forward pass successful")
+print("Logits shape:", out.logits.shape)
+  [STREAM OUT: Forward pass successful Logits shape: torch.Size([1, 6, 50257]) ]
+--- CODE [10] ---
+compressed_params = count_parameters(compressed_model)
+
+print("Baseline parameters:", baseline_params)
+print("Compressed parameters:", compressed_params)
+  [STREAM OUT: Baseline parameters: 124439808 Compressed parameters: 67928832 ]
+--- CODE [11] ---
+torch.save(baseline_model.state_dict(), "baseline.pt")
+torch.save(compressed_model.state_dict(), "compressed.pt")
+
+baseline_size = os.path.getsize("baseline.pt")/1024**2
+compressed_size = os.path.getsize("compressed.pt")/1024**2
+
+print("Baseline size (MB):", baseline_size)
+print("Compressed size (MB):", compressed_size)
+  [STREAM OUT: Baseline size (MB): 474.753586769104 Compressed size (MB): 259.18871784210205 ]
+--- CODE [12] ---
+def measure_latency(model, runs=50):
+
+    dummy = tokenizer(
+        "Artificial intelligence is amazing.",
+        return_tensors="pt"
+    ).to(device)
+
+    for _ in range(10):
+        with torch.no_grad():
+            model(**dummy)
+
+    torch.cuda.synchronize()
+
+    start = time.time()
+
+    for _ in range(runs):
+        with torch.no_grad():
+            model(**dummy)
+
+    torch.cuda.synchronize()
+
+    end = time.time()
+
+    return (end-start)/runs
+--- CODE [13] ---
+baseline_latency = measure_latency(baseline_model)
+compressed_latency = measure_latency(compressed_model)
+
+print("Baseline latency ms:", baseline_latency*1000)
+print("Compressed latency ms:", compressed_latency*1000)
+  [STREAM OUT: Baseline latency ms: 9.617819786071777 Compressed latency ms: 11.437020301818848 ]
+--- CODE [14] ---
+def tokens_per_sec(model, runs=50):
+
+    text = "Artificial intelligence is amazing."
+
+    dummy = tokenizer(text, return_tensors="pt").to(device)
+
+    tokens = dummy["input_ids"].shape[1]
+
+    torch.cuda.synchronize()
+
+    start = time.time()
+
+    for _ in range(runs):
+        with torch.no_grad():
+            model(**dummy)
+
+    torch.cuda.synchronize()
+
+    end = time.time()
+
+    return (tokens*runs)/(end-start)
+--- CODE [15] ---
+baseline_tps = tokens_per_sec(baseline_model)
+compressed_tps = tokens_per_sec(compressed_model)
+
+print("Baseline TPS:", baseline_tps)
+print("Compressed TPS:", compressed_tps)
+  [STREAM OUT: Baseline TPS: 422.20725713014497 Compressed TPS: 424.56107912081535 ]
+--- CODE [16] ---
+dataset = load_dataset("wikitext", "wikitext-2-raw-v1")
+
+eval_texts = dataset["validation"]["text"]
+
+eval_texts = [t for t in eval_texts if len(t.strip())>0]
+
+tokenized = tokenizer(
+    eval_texts,
+    truncation=True,
+    padding="max_length",
+    max_length=128
+)
+--- CODE [17] ---
+class WikiDataset(torch.utils.data.Dataset):
+
+    def __init__(self, encodings):
+        self.encodings = encodings
+
+    def __len__(self):
+        return len(self.encodings["input_ids"])
+
+    def __getitem__(self, idx):
+
+        return {
+            "input_ids": torch.tensor(self.encodings["input_ids"][idx]),
+            "attention_mask": torch.tensor(self.encodings["attention_mask"][idx])
+        }
+
+
+eval_dataset = WikiDataset(tokenized)
+
+eval_loader = DataLoader(eval_dataset, batch_size=8)
+--- CODE [18] ---
+def evaluate_perplexity(model, dataloader):
+
+    model.eval()
+
+    total_loss = 0
+    total_tokens = 0
+
+    with torch.no_grad():
+
+        for batch in dataloader:
+
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+
+            labels = input_ids.clone()
+            labels[attention_mask==0] = -100
+
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                la
+--- CODE [19] ---
+baseline_ppl = evaluate_perplexity(baseline_model, eval_loader)
+
+compressed_ppl = evaluate_perplexity(compressed_model, eval_loader)
+
+print("Baseline PPL:", baseline_ppl)
+print("Compressed PPL:", compressed_ppl)
+  [STREAM OUT: Baseline PPL: 59.081966184984275 Compressed PPL: 50039.7159353178 ]
+--- CODE [20] ---
+plt.figure()
+
+plt.bar(
+    ["Baseline", "Compressed"],
+    [baseline_params/1e6, compressed_params/1e6]
+)
+
+plt.ylabel("Parameters (Millions)")
+plt.title("GPT-2 Parameter Count Comparison")
+
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [21] ---
+plt.figure()
+
+plt.bar(
+    ["Baseline", "Compressed"],
+    [baseline_size, compressed_size]
+)
+
+plt.ylabel("Model Size (MB)")
+plt.title("Disk Storage Comparison")
+
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [22] ---
+plt.figure()
+
+plt.bar(
+    ["Baseline", "Compressed"],
+    [baseline_latency*1000, compressed_latency*1000]
+)
+
+plt.ylabel("Latency (ms)")
+plt.title("Inference Latency Comparison")
+
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [23] ---
+plt.figure()
+
+plt.bar(
+    ["Baseline", "Compressed"],
+    [baseline_tps, compressed_tps]
+)
+
+plt.ylabel("Tokens per Second")
+plt.title("Throughput Comparison")
+
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [24] ---
+plt.figure()
+
+plt.bar(
+    ["Baseline", "Compressed"],
+    [baseline_ppl, compressed_ppl]
+)
+
+plt.ylabel("Perplexity")
+plt.title("Language Modeling Performance")
+
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [25] ---
+param_reduction = (baseline_params - compressed_params) / baseline_params * 100
+size_reduction = (baseline_size - compressed_size) / baseline_size * 100
+
+plt.figure()
+
+plt.bar(
+    ["Parameter Reduction", "Size Reduction"],
+    [param_reduction, size_reduction]
+)
+
+plt.ylabel("Reduction (%)")
+plt.title("Compression Effectiveness")
+
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [26] ---
+metrics = ["Parameters", "Disk Size", "Latency", "Tokens/sec"]
+
+baseline_values = [1, 1, 1, 1]
+
+compressed_values = [
+    compressed_params/baseline_params,
+    compressed_size/baseline_size,
+    compressed_latency/baseline_latency,
+    compressed_tps/baseline_tps
+]
+
+x = np.arange(len(metrics))
+width = 0.35
+
+fig, ax = plt.subplots()
+
+ax.bar(x - width/2, baseline_values, width, label="Baseline")
+ax.bar(x + width/2, compressed_values, width, label="Compressed")
+
+ax.set_ylabel("Relative Value (Base
+  [HAS PLOT/DISPLAY]
+--- CODE [27] ---
+compression_ratio = baseline_params / compressed_params
+
+print("Compression Ratio:", compression_ratio)
+
+  [STREAM OUT: Compression Ratio: 1.8319144365679658 ]
+
+=== Final-Plots.ipynb ===
+Total cells: 31
+--- CODE [0] ---
+import torch
+import torch.nn as nn
+import math
+import matplotlib.pyplot as plt
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+--- CODE [1] ---
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
+  [STREAM OUT: Using device: cuda ]
+--- CODE [2] ---
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+tokenizer.pad_token = tokenizer.eos_token
+
+baseline_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+baseline_model.eval()
+  [EXEC RESULT]
+--- CODE [3] ---
+text = "Artificial intelligence is transforming the world."
+inputs = tokenizer(text, return_tensors="pt").to(device)
+
+with torch.no_grad():
+    baseline_logits = baseline_model(**inputs).logits
+--- CODE [4] ---
+def kronecker_rank1(W, m1, m2, n1, n2):
+    W = W.reshape(m1, m2, n1, n2)
+    W = W.permute(0, 2, 1, 3).reshape(m1*n1, m2*n2)
+
+    U, S, Vh = torch.linalg.svd(W, full_matrices=False)
+
+    u = U[:, 0]
+    v = Vh[0, :]
+    s = S[0]
+
+    A = (u * math.sqrt(s)).reshape(m1, n1)
+    B = (v * math.sqrt(s)).reshape(m2, n2)
+
+    return A.to(device), B.to(device)
+--- CODE [5] ---
+class KronLinear(nn.Module):
+    def __init__(self, A, B, bias, out_dim):
+        super().__init__()
+        self.A = nn.Parameter(A)
+        self.B = nn.Parameter(B)
+        self.bias = nn.Parameter(bias.clone().to(device))
+        self.out_dim = out_dim
+        self.m1, self.n1 = A.shape
+        self.m2, self.n2 = B.shape
+
+    def forward(self, x):
+        batch, seq, _ = x.shape
+        x = x.reshape(batch*seq, self.n1, self.n2)
+        x = torch.matmul(x, self.B.t())
+        x = torch.matmul
+--- CODE [6] ---
+def compress_single_layer(model, layer_idx):
+    block = model.transformer.h[layer_idx]
+
+    # c_fc
+    W_fc = block.mlp.c_fc.weight.data.to(device)
+    b_fc = block.mlp.c_fc.bias.data.to(device)
+
+    A_fc, B_fc = kronecker_rank1(
+        W_fc,
+        m1=48, m2=64,
+        n1=12, n2=64
+    )
+
+    block.mlp.c_fc = KronLinear(A_fc, B_fc, b_fc, out_dim=3072)
+
+    # c_proj
+    W_proj = block.mlp.c_proj.weight.data.to(device)
+    b_proj = block.mlp.c_proj.bias.data.to(device)
+
+    A_proj, B_proj = k
+--- CODE [7] ---
+layer_results = []
+
+for layer_idx in range(12):
+    model_temp = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+    model_temp.eval()
+
+    compress_single_layer(model_temp, layer_idx)
+
+    with torch.no_grad():
+        logits_temp = model_temp(**inputs).logits
+
+    rel_diff = torch.norm(baseline_logits - logits_temp) / torch.norm(baseline_logits)
+    layer_results.append(rel_diff.item())
+
+    print(f"Layer {layer_idx} relative diff: {rel_diff.item():.4f}")
+  [STREAM OUT: Layer 0 relative diff: 0.3034 Layer 1 relative diff: 0.0289 Layer 2 relative diff: 0.0363 Layer 3 re]
+--- CODE [8] ---
+plt.figure()
+plt.plot(range(12), layer_results, marker='o')
+
+plt.xlabel("Layer Index")
+plt.ylabel("Relative Logit Difference")
+plt.title("Isolated Layer Sensitivity to Kronecker Compression")
+plt.grid(True)
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [9] ---
+with torch.no_grad():
+    baseline_logits = baseline_model(**inputs).logits
+--- CODE [10] ---
+cumulative_results = []
+
+for k in range(13):  # 0 to 12 layers
+    model_temp = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+    model_temp.eval()
+
+    # Compress first k layers
+    for layer_idx in range(k):
+        compress_single_layer(model_temp, layer_idx)
+
+    with torch.no_grad():
+        logits_temp = model_temp(**inputs).logits
+
+    rel_diff = torch.norm(baseline_logits - logits_temp) / torch.norm(baseline_logits)
+
+    cumulative_results.append(rel_diff.item())
+    print(f"Cumulat
+  [STREAM OUT: Cumulative compressed layers: 0, Relative diff: 0.0000 Cumulative compressed layers: 1, Relative dif]
+--- CODE [11] ---
+plt.figure()
+plt.plot(range(13), cumulative_results, marker='o')
+
+plt.xlabel("Number of Compressed Layers")
+plt.ylabel("Relative Logit Difference")
+plt.title("Cumulative Rank-1 Compression Effect")
+plt.grid(True)
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [12] ---
+plt.figure()
+
+plt.plot(range(12), layer_results, marker='o', label="Isolated")
+plt.plot(range(13), cumulative_results, marker='x', label="Cumulative")
+
+plt.xlabel("Layer Index / #Compressed Layers")
+plt.ylabel("Relative Logit Difference")
+plt.title("Isolated vs Cumulative Rank-1 Compression")
+plt.legend()
+plt.grid(True)
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [13] ---
+plt.figure()
+
+plt.plot(range(12), layer_results, marker='o', label="Isolated")
+plt.plot(range(1,13), cumulative_results[1:], marker='x', label="Cumulative")
+
+plt.xlabel("Layer Index")
+plt.ylabel("Relative Logit Difference")
+plt.title("Isolated vs Cumulative Compression")
+plt.legend()
+plt.grid(True)
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [14] ---
+import matplotlib.pyplot as plt
+import numpy as np
+isolated_array = np.array(layer_results).reshape(1, 12)
+--- CODE [15] ---
+plt.figure(figsize=(10, 2))
+
+plt.imshow(isolated_array, aspect='auto', cmap='viridis')
+plt.colorbar(label="Relative Logit Difference")
+
+plt.yticks([0], ["Isolated"])
+plt.xticks(range(12), range(12))
+
+plt.xlabel("Layer Index")
+plt.title("Layer-wise Sensitivity Heatmap (Isolated Rank-1 Compression)")
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [16] ---
+cumulative_array = np.array(cumulative_results[1:]).reshape(1, 12)
+--- CODE [17] ---
+plt.figure(figsize=(10, 2))
+
+plt.imshow(cumulative_array, aspect='auto', cmap='magma')
+plt.colorbar(label="Relative Logit Difference")
+
+plt.yticks([0], ["Cumulative"])
+plt.xticks(range(12), range(1,13))
+
+plt.xlabel("Number of Compressed Layers")
+plt.title("Cumulative Compression Degradation Heatmap")
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [18] ---
+combined = np.vstack([isolated_array, cumulative_array])
+--- CODE [19] ---
+
+plt.figure(figsize=(12, 4))
+
+plt.imshow(combined, aspect='auto', cmap='plasma')
+plt.colorbar(label="Relative Logit Difference")
+
+plt.yticks([0, 1], ["Isolated", "Cumulative"])
+plt.xticks(range(12), range(12))
+
+plt.xlabel("Layer Index")
+plt.title("Layer-wise Compression Sensitivity (Rank-1)")
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- CODE [20] ---
+!pip install datasets
+  [STREAM OUT: Requirement already satisfied: datasets in c:\users\mahakisore\miniconda3\lib\site-packages (4.5.0) ]
+--- CODE [21] ---
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+--- CODE [22] ---
+dataset = load_dataset("wikitext", "wikitext-2-raw-v1")
+
+eval_texts = dataset["validation"]["text"]
+--- CODE [23] ---
+def tokenize_function(examples):
+    return tokenizer(
+        examples,
+        truncation=True,
+        padding="max_length",
+        max_length=128,
+        return_tensors="pt"
+    )
+
+# Remove empty strings
+eval_texts = [t for t in eval_texts if len(t.strip()) > 0]
+
+tokenized = tokenizer(
+    eval_texts,
+    truncation=True,
+    padding="max_length",
+    max_length=128
+)
+--- CODE [24] ---
+class WikiDataset(torch.utils.data.Dataset):
+    def __init__(self, encodings):
+        self.encodings = encodings
+
+    def __len__(self):
+        return len(self.encodings["input_ids"])
+
+    def __getitem__(self, idx):
+        return {
+            "input_ids": torch.tensor(self.encodings["input_ids"][idx]),
+            "attention_mask": torch.tensor(self.encodings["attention_mask"][idx])
+        }
+
+eval_dataset = WikiDataset(tokenized)
+
+eval_loader = DataLoader(eval_dataset, batch_size=8)
+--- CODE [25] ---
+import math
+
+def evaluate_perplexity(model, dataloader):
+    model.eval()
+    total_loss = 0
+    total_tokens = 0
+
+    with torch.no_grad():
+        for batch in dataloader:
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+
+            labels = input_ids.clone()
+            labels[attention_mask == 0] = -100
+
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+       
+--- CODE [26] ---
+cumulative_ppl = []
+
+for k in range(13):
+    model_temp = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+
+    for layer_idx in range(k):
+        compress_single_layer(model_temp, layer_idx)
+
+    ppl = evaluate_perplexity(model_temp, eval_loader)
+    cumulative_ppl.append(ppl)
+
+    print(f"Cumulative layers {k}: PPL = {ppl:.2f}")
+  [STREAM OUT: Cumulative layers 0: PPL = 59.08 Cumulative layers 1: PPL = 4825.16 Cumulative layers 2: PPL = 3291.]
+--- CODE [27] ---
+isolated_ppl = []
+
+for layer_idx in range(12):
+    model_temp = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+
+    compress_single_layer(model_temp, layer_idx)
+
+    ppl = evaluate_perplexity(model_temp, eval_loader)
+    isolated_ppl.append(ppl)
+
+    print(f"Isolated layer {layer_idx}: PPL = {ppl:.2f}")
+  [STREAM OUT: Isolated layer 0: PPL = 4825.16 Isolated layer 1: PPL = 61.56 Isolated layer 2: PPL = 62.77 Isolated]
+--- CODE [28] ---
+import numpy as np
+
+isolated_array = np.array(isolated_ppl).reshape(1, 12)
+cumulative_array = np.array(cumulative_ppl[1:]).reshape(1, 12)
+
+combined_ppl = np.vstack([isolated_array, cumulative_array])
+--- CODE [29] ---
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 4))
+
+plt.imshow(combined_ppl, aspect='auto', cmap='inferno')
+plt.colorbar(label="Perplexity")
+
+plt.yticks([0, 1], ["Isolated", "Cumulative"])
+plt.xticks(range(12), range(12))
+
+plt.xlabel("Layer Index")
+plt.title("Perplexity Sensitivity Heatmap (Rank-1 Compression)")
+plt.show()
+  [HAS PLOT/DISPLAY]
+
+=== Rank-2_Compression.ipynb ===
+Total cells: 18
+--- CODE [0] ---
+import torch
+import torch.nn as nn
+import math
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from torch.optim import AdamW
+from torch.amp import autocast, GradScaler
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+print("Using device:", device)
+  [STREAM OUT: Using device: cuda ]
+--- CODE [1] ---
+model_name = "gpt2"
+
+tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+tokenizer.pad_token = tokenizer.eos_token
+
+baseline_model = GPT2LMHeadModel.from_pretrained(model_name).to(device)
+baseline_model.eval()
+
+print("Baseline GPT-2 loaded.")
+  [STREAM OUT: Baseline GPT-2 loaded. ]
+--- CODE [2] ---
+dataset = load_dataset("wikitext", "wikitext-2-raw-v1")
+
+def tokenize_function(examples):
+    return tokenizer(
+        examples["text"],
+        truncation=True,
+        max_length=128,
+        padding="max_length"
+    )
+
+tokenized_dataset = dataset.map(
+    tokenize_function,
+    batched=True,
+    remove_columns=["text"]
+)
+
+tokenized_dataset.set_format(type="torch")
+
+train_loader = DataLoader(tokenized_dataset["train"], batch_size=8, shuffle=True)
+eval_loader = DataLoader(tokenized_dataset["va
+  [STREAM OUT: Dataset ready. ]
+--- CODE [3] ---
+def evaluate_perplexity(model, dataloader):
+    model.eval()
+    total_loss = 0
+    total_tokens = 0
+
+    with torch.no_grad():
+        for batch in dataloader:
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+
+            labels = input_ids.clone()
+            labels[attention_mask == 0] = -100
+
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labe
+--- CODE [4] ---
+baseline_ppl = evaluate_perplexity(baseline_model, eval_loader)
+print("Baseline GPT-2 perplexity:", baseline_ppl)
+  [STREAM OUT: Baseline GPT-2 perplexity: 69.17921938374056 ]
+--- CODE [5] ---
+def kronecker_decompose_rank_k(W, m1, m2, n1, n2, k=2):
+    """
+    W shape: (m1*m2, n1*n2)
+    """
+    W_reshaped = W.reshape(m1, m2, n1, n2)
+    W_reshaped = W_reshaped.permute(0, 2, 1, 3)
+    W_reshaped = W_reshaped.reshape(m1*n1, m2*n2)
+
+    U, S, Vh = torch.linalg.svd(W_reshaped)
+
+    A_list = []
+    B_list = []
+
+    for i in range(k):
+        u = U[:, i].reshape(m1, n1)
+        v = Vh[i, :].reshape(m2, n2)
+
+        A = torch.sqrt(S[i]) * u
+        B = torch.sqrt(S[i]) * v
+
+        A_list.a
+--- CODE [6] ---
+class KroneckerLinearRankK(nn.Module):
+    def __init__(self, A_list, B_list, bias):
+        super().__init__()
+        
+        self.A_list = nn.ParameterList([nn.Parameter(A) for A in A_list])
+        self.B_list = nn.ParameterList([nn.Parameter(B) for B in B_list])
+        self.bias = nn.Parameter(bias.clone()) if bias is not None else None
+
+    def forward(self, x):
+        W_total = 0
+        
+        for A, B in zip(self.A_list, self.B_list):
+            W_total = W_total + torch.kron(A, B
+--- CODE [7] ---
+def compress_one_layer_rank2(model, layer_idx):
+    block = model.transformer.h[layer_idx]
+
+    # ======================
+    # c_fc  (3072 x 768)
+    # ======================
+    W_fc = block.mlp.c_fc.weight
+    b_fc = block.mlp.c_fc.bias
+
+    # 3072 = 48 × 64
+    # 768  = 12 × 64
+    A_fc, B_fc = kronecker_decompose_rank_k(
+        W_fc,
+        m1=48, m2=64,
+        n1=12, n2=64,
+        k=2
+    )
+
+    block.mlp.c_fc = KroneckerLinearRankK(A_fc, B_fc, b_fc)
+
+    # ======================
+    # 
+--- CODE [8] ---
+rank2_model = GPT2LMHeadModel.from_pretrained("gpt2").to(device)
+rank2_model.eval()
+
+for layer_idx in range(12):
+    compress_one_layer_rank2(rank2_model, layer_idx)
+
+print("All 12 layers compressed with Rank-2.")
+  [STREAM OUT: All 12 layers compressed with Rank-2. ]
+--- CODE [9] ---
+ppl_rank2_before = evaluate_perplexity(rank2_model, eval_loader)
+print("Rank-2 12-layer perplexity (before training):", ppl_rank2_before)
+  [STREAM OUT: Rank-2 12-layer perplexity (before training): 21978.30694074659 ]
+--- CODE [10] ---
+optimizer = AdamW(rank2_model.parameters(), lr=3e-5)
+scaler = GradScaler(device="cuda")
+
+rank2_model.train()
+
+for epoch in range(5):
+    total_loss = 0
+    steps = 0
+
+    for batch in train_loader:
+        input_ids = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+
+        labels = input_ids.clone()
+        labels[attention_mask == 0] = -100
+
+        optimizer.zero_grad()
+
+        with autocast(device_type="cuda"):
+            outputs = rank2_model(
+   
+  [STREAM OUT: Epoch 1, Avg Loss: 6.194455523844119 ]
+--- CODE [11] ---
+ppl_rank2_after = evaluate_perplexity(rank2_model, eval_loader)
+print("Rank-2 12-layer perplexity (after training):", ppl_rank2_after)
+--- CODE [12] ---
+results_rank2 = pd.DataFrame({
+    "Model": [
+        "Original GPT-2",
+        "Rank-2 12-layer compressed"
+    ],
+    "Perplexity": [
+        baseline_ppl,
+        ppl_rank2_after
+    ]
+})
+
+results_rank2
+--- CODE [13] ---
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters())
+
+baseline_params = count_parameters(baseline_model)
+rank2_params = count_parameters(rank2_model)
+
+print("Baseline parameters:", f"{baseline_params:,}")
+print("Rank-2 parameters:", f"{rank2_params:,}")
+
+reduction = (baseline_params - rank2_params) / baseline_params * 100
+print(f"Parameter reduction: {reduction:.2f}%")
+--- CODE [14] ---
+import torch
+import time
+import pandas as pd
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
+  [STREAM OUT: Using device: cuda ]
+--- CODE [15] ---
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
+model_name = "gpt2"
+
+tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+tokenizer.pad_token = tokenizer.eos_token
+
+baseline_model = GPT2LMHeadModel.from_pretrained(model_name).to(device)
+baseline_model.eval()
+
+print("Baseline model loaded.")
+  [STREAM OUT: Baseline model loaded. ]
+--- CODE [16] ---
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters())
+
+baseline_params = count_parameters(baseline_model)
+rank2_params = count_parameters(rank2_model)
+
+print("Baseline parameters:", f"{baseline_params:,}")
+print("Rank-2 parameters:", f"{rank2_params:,}")
+
+reduction = (baseline_params - rank2_params) / baseline_params * 100
+print(f"Parameter reduction: {reduction:.2f}%")
+  [HAS ERRORS: NameError - name 'rank2_model' is not defined]
+
+=== Logit_Score_Calculation_Layer_by-layer.ipynb ===
+Total cells: 27
+--- CODE [0] ---
+!pip install matplotlib
+  [STREAM OUT: Requirement already satisfied: matplotlib in c:\users\mahakisore\miniconda3\lib\site-packages (3.10.]
+--- CODE [1] ---
+import torch
+import torch.nn as nn
+import matplotlib.pyplot as plt
+import pandas as pd
+
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from einops import rearrange
+
+torch.manual_seed(0)
+  [EXEC RESULT]
+--- CODE [2] ---
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+
+baseline_model = GPT2LMHeadModel.from_pretrained("gpt2")
+baseline_model.eval()
+
+  [EXEC RESULT]
+--- CODE [3] ---
+text = "Artificial intelligence is"
+inputs = tokenizer(text, return_tensors="pt")
+
+with torch.no_grad():
+    baseline_logits = baseline_model(**inputs).logits
+
+--- CODE [4] ---
+def kronecker_decompose(W, m, n, k=1):
+    out_dim, in_dim = W.shape
+    m2 = out_dim // m
+    n2 = in_dim // n
+
+    W_re = rearrange(
+        W,
+        '(m m2) (n n2) -> (m n) (m2 n2)',
+        m=m, m2=m2, n=n, n2=n2
+    )
+
+    U, S, V = torch.svd_lowrank(W_re, q=k)
+
+    A = rearrange(U, '(m n) k -> k m n', m=m, n=n)
+    B = rearrange(V, '(m2 n2) k -> k m2 n2', m2=m2, n2=n2)
+
+    scale = S.sqrt().view(-1, 1, 1)
+
+    return A * scale, B * scale
+
+--- CODE [5] ---
+def adaptive_normalize(W, A, B):
+    W_hat = torch.kron(A[0], B[0])
+    alpha = torch.norm(W, p="fro") / torch.norm(W_hat, p="fro")
+    return A * torch.sqrt(alpha), B * torch.sqrt(alpha)
+
+--- CODE [6] ---
+class KroneckerLinear(nn.Module):
+    def __init__(self, A, B, bias):
+        super().__init__()
+        self.A = nn.Parameter(A)
+        self.B = nn.Parameter(B)
+        self.bias = nn.Parameter(bias.clone())
+
+    def forward(self, x):
+        y = torch.matmul(x, self.A)
+        y = y.unsqueeze(-1) * self.B
+        y = y.reshape(y.shape[0], y.shape[1], -1)
+        return y + self.bias
+
+--- CODE [7] ---
+class KroneckerLinearProj(nn.Module):
+    def __init__(self, A, B, bias):
+        super().__init__()
+        self.A = nn.Parameter(A)
+        self.B = nn.Parameter(B)
+        self.bias = nn.Parameter(bias.clone())
+
+    def forward(self, x):
+        x = x.view(x.shape[0], x.shape[1], -1, 2)
+        x = (x * self.B).sum(dim=-1)
+        x = torch.matmul(x, self.A.t())
+        return x + self.bias
+
+--- CODE [8] ---
+def compress_one_layer(model, layer_idx):
+    block = model.transformer.h[layer_idx]
+
+    # ---- c_fc ----
+    W_fc = block.mlp.c_fc.weight
+    b_fc = block.mlp.c_fc.bias
+
+    A_fc, B_fc = kronecker_decompose(W_fc, m=768, n=1536)
+    A_fc, B_fc = adaptive_normalize(W_fc, A_fc, B_fc)
+
+    block.mlp.c_fc = KroneckerLinear(
+        A_fc[0],
+        B_fc[0],
+        b_fc
+    )
+
+    # ---- c_proj ----
+    W_proj = block.mlp.c_proj.weight.T
+    b_proj = block.mlp.c_proj.bias
+
+    A_p, B_p = kronecker_
+--- CODE [9] ---
+results = []
+
+for k in range(13):  # 0 to 12 layers
+    model_k = GPT2LMHeadModel.from_pretrained("gpt2")
+    model_k.eval()
+
+    for layer_idx in range(k):
+        compress_one_layer(model_k, layer_idx)
+
+    with torch.no_grad():
+        logits_k = model_k(**inputs).logits
+
+    rel_diff = torch.norm(baseline_logits - logits_k) / torch.norm(baseline_logits)
+
+    results.append((k, rel_diff.item()))
+    print(f"Compressed layers: {k}, Relative logit diff: {rel_diff.item():.4f}")
+
+  [STREAM OUT: Compressed layers: 0, Relative logit diff: 0.0000 Compressed layers: 1, Relative logit diff: 0.1281 ]
+--- CODE [10] ---
+df = pd.DataFrame(results, columns=["Compressed Layers", "Relative Logit Difference"])
+df
+
+  [EXEC RESULT]
+--- CODE [11] ---
+plt.figure(figsize=(6,4))
+plt.plot(df["Compressed Layers"], df["Relative Logit Difference"], marker="o")
+plt.xlabel("Number of Compressed Layers")
+plt.ylabel("Relative Logit Difference")
+plt.title("Layer-wise Kronecker FFN Compression Effect")
+plt.grid(True)
+plt.show()
+  [HAS PLOT/DISPLAY]
+--- MD [12] ---
+$Ax=b$
+--- CODE [13] ---
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters())
+
+original_model = GPT2LMHeadModel.from_pretrained("gpt2")
+original_model.eval()
+
+total_original_params = count_parameters(original_model)
+
+print(f"Total GPT-2 parameters: {total_original_params:,}")
+  [STREAM OUT: Total GPT-2 parameters: 124,439,808 ]
+--- CODE [14] ---
+def count_ffn_parameters(model):
+    total = 0
+    for block in model.transformer.h:
+        total += block.mlp.c_fc.weight.numel()
+        total += block.mlp.c_fc.bias.numel()
+        total += block.mlp.c_proj.weight.numel()
+        total += block.mlp.c_proj.bias.numel()
+    return total
+
+original_ffn_params = count_ffn_parameters(original_model)
+
+print(f"Original FFN parameters: {original_ffn_params:,}")
+  [STREAM OUT: Original FFN parameters: 56,669,184 ]
+--- CODE [15] ---
+def compressed_ffn_parameters():
+    # c_fc
+    A_fc = 768 * 1536
+    B_fc = 1 * 2
+    bias_fc = 3072
+
+    # c_proj
+    A_proj = 768 * 1536
+    B_proj = 1 * 2
+    bias_proj = 768
+
+    per_layer = (
+        A_fc + B_fc + bias_fc +
+        A_proj + B_proj + bias_proj
+    )
+
+    total = per_layer * 12
+    return total
+
+compressed_ffn_params = compressed_ffn_parameters()
+
+print(f"Compressed FFN parameters: {compressed_ffn_params:,}")
+
+  [STREAM OUT: Compressed FFN parameters: 28,357,680 ]
+--- CODE [16] ---
+non_ffn_params = total_original_params - original_ffn_params
+
+total_compressed_params = non_ffn_params + compressed_ffn_params
+
+print(f"Total compressed model parameters: {total_compressed_params:,}")
+
+  [STREAM OUT: Total compressed model parameters: 96,128,304 ]
+--- CODE [17] ---
+reduction = (total_original_params - total_compressed_params) / total_original_params * 100
+
+print(f"Parameter reduction: {reduction:.2f}%")
+
+  [STREAM OUT: Parameter reduction: 22.75% ]
+--- CODE [18] ---
+!pip install datasets
+
+  [STREAM OUT: Requirement already satisfied: datasets in c:\users\mahakisore\miniconda3\lib\site-packages (4.5.0) ]
+--- CODE [19] ---
+from datasets import load_dataset
+
+dataset = load_dataset("wikitext", "wikitext-2-raw-v1")
+
+--- CODE [20] ---
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+
+# FIX: GPT-2 has no pad token → use eos_token as pad
+tokenizer.pad_token = tokenizer.eos_token
+
+
+def tokenize_function(examples):
+    return tokenizer(
+        examples["text"],
+        truncation=True,
+        max_length=128,
+        padding="max_length"
+    )
+
+tokenized_dataset = dataset.map(
+    tokenize_function,
+    batched=True,
+    remove_columns=["text"]
+)
+
+--- CODE [21] ---
+import torch
+from torch.utils.data import DataLoader
+
+tokenized_dataset.set_format("torch")
+
+train_loader = DataLoader(
+    tokenized_dataset["train"],
+    batch_size=8,
+    shuffle=True
+)
+
+eval_loader = DataLoader(
+    tokenized_dataset["validation"],
+    batch_size=8
+)
+
+--- CODE [22] ---
+import math
+
+
+def evaluate_perplexity(model, dataloader):
+    model.eval()
+    total_loss = 0
+    total_tokens = 0
+
+    with torch.no_grad():
+        for batch in dataloader:
+            input_ids = batch["input_ids"]
+            attention_mask = batch["attention_mask"]
+
+            # Create labels
+            labels = input_ids.clone()
+
+            # Mask padding tokens
+            labels[attention_mask == 0] = -100
+
+            outputs = model(
+                input_ids=input_ids,
+            
+--- CODE [23] ---
+compressed_model = GPT2LMHeadModel.from_pretrained("gpt2")
+compressed_model.eval()
+
+# Compress ALL 12 layers
+for layer_idx in range(12):
+    compress_one_layer(compressed_model, layer_idx)
+
+--- CODE [24] ---
+with torch.no_grad():
+    test_logits = compressed_model(**inputs).logits
+
+print("Compressed model forward pass works.")
+
+  [STREAM OUT: Compressed model forward pass works. ]
+--- CODE [25] ---
+compressed_model = compressed_model  # your 12-layer compressed model
+
+ppl_before = evaluate_perplexity(compressed_model, eval_loader)
+print("Compressed model perplexity (before training):", ppl_before)
+
+  [STREAM OUT: Compressed model perplexity (before training): 20900.152654365153 ]
+
+=== Baseline_GPT2small.ipynb ===
+Total cells: 41
+--- CODE [0] ---
+!pip install -q transformers torch
+
+--- CODE [1] ---
+import torch
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+--- CODE [2] ---
+torch.manual_seed(0)
+print(torch.rand(3))
+torch.cuda.manual_seed_all(0)
+
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+  [STREAM OUT: tensor([0.4963, 0.7682, 0.0885]) ]
+--- CODE [3] ---
+model_name = "gpt2"   
+
+tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+model = GPT2LMHeadModel.from_pretrained(model_name)
+tokenizer.pad_token = tokenizer.eos_token
+
+model.eval()  
+  [EXEC RESULT]
+--- CODE [4] ---
+text = "Artificial intelligence is"
+
+inputs = tokenizer(text, return_tensors="pt")
+
+with torch.no_grad():
+    outputs = model.generate(
+        input_ids=inputs["input_ids"],
+        attention_mask=inputs["attention_mask"],
+        max_new_tokens=20,
+        do_sample=False,   #Model always picks the most probable next token
+        pad_token_id=tokenizer.eos_token_id
+    )
+
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+
+  [STREAM OUT: Artificial intelligence is a new field of research that has been in the works for a while now. It is]
+--- CODE [5] ---
+print(model)
+  [STREAM OUT: GPT2LMHeadModel(   (transformer): GPT2Model(     (wte): Embedding(50257, 768)     (wpe): Embedding(1]
+--- CODE [6] ---
+block = model.transformer.h[0]
+print(block)
+
+# block = model.transformer.h[0]
+# print(block.mlp.c_fc.bias.shape)     # torch.Size([3072])
+# print(block.mlp.c_proj.bias.shape)   # torch.Size([768])
+
+  [STREAM OUT: GPT2Block(   (ln_1): LayerNorm((768,), eps=1e-05, elementwise_affine=True)   (attn): GPT2Attention( ]
+--- CODE [7] ---
+fc_weight = block.mlp.c_fc.weight      
+proj_weight = block.mlp.c_proj.weight  
+
+print("c_fc weight shape:", fc_weight.shape)
+print("c_proj weight shape:", proj_weight.shape)
+
+  [STREAM OUT: c_fc weight shape: torch.Size([768, 3072]) c_proj weight shape: torch.Size([3072, 768]) ]
+--- CODE [8] ---
+fc_fro_norm = torch.norm(fc_weight, p="fro")
+proj_fro_norm = torch.norm(proj_weight, p="fro")
+
+print("Frobenius norm of c_fc:", fc_fro_norm.item())
+print("Frobenius norm of c_proj:", proj_fro_norm.item())
+
+  [STREAM OUT: Frobenius norm of c_fc: 216.8270721435547 Frobenius norm of c_proj: 135.10826110839844 ]
+--- CODE [9] ---
+!pip install einops
+  [STREAM OUT: Requirement already satisfied: einops in c:\users\mahakisore\miniconda3\lib\site-packages (0.8.2) ]
+--- CODE [10] ---
+from einops import rearrange
+
+def kronecker_decompose(W, m, n, k=1, niter=10):
+    """
+    Van Loan Kronecker decomposition.
+    
+    W: weight matrix (torch.Tensor)
+    m, n: dimensions of first Kronecker factor
+    k: number of Kronecker factors (start with 1)
+    """
+
+    out_dim, in_dim = W.shape
+    print(out_dim)
+    print(in_dim)
+
+    m2 = out_dim // m
+    n2 = in_dim // n
+
+    assert m * m2 == out_dim
+    assert n * n2 == in_dim
+
+
+    W_re = rearrange(
+        W,
+        '(m m2) (n n2) -
+--- CODE [11] ---
+A, B = kronecker_decompose(
+    fc_weight,
+    m=768,
+    n=1536,
+    k=1
+)
+
+print("A shape:", A.shape)
+print("B shape:", B.shape)
+  [STREAM OUT: 768 3072 A shape: torch.Size([1, 768, 1536]) B shape: torch.Size([1, 1, 2]) ]
+--- CODE [12] ---
+W_hat = torch.kron(A[0], B[0])
+
+print("Original shape:", fc_weight.shape)
+print("Reconstructed shape:", W_hat.shape)
+
+  [STREAM OUT: Original shape: torch.Size([768, 3072]) Reconstructed shape: torch.Size([768, 3072]) ]
+--- CODE [13] ---
+recon_error = torch.norm(fc_weight - W_hat, p="fro")
+orig_norm = torch.norm(fc_weight, p="fro")
+
+print("Original Frobenius norm:", orig_norm.item())
+print("Reconstruction error:", recon_error.item())
+print("Relative error:", (recon_error / orig_norm).item())
+
+  [STREAM OUT: Original Frobenius norm: 216.8270721435547 Reconstruction error: 151.0072479248047 Relative error: 0]
+--- CODE [14] ---
+W_hat_norm_before = torch.norm(W_hat, p="fro")
+W_orig_norm = torch.norm(fc_weight, p="fro")
+
+print("Original W Frobenius norm:", W_orig_norm.item())
+print("Kronecker Ŵ Frobenius norm (before):", W_hat_norm_before.item())
+print("Norm ratio (Ŵ / W):", (W_hat_norm_before / W_orig_norm).item())
+
+  [STREAM OUT: Original W Frobenius norm: 216.8270721435547 Kronecker Ŵ Frobenius norm (before): 155.6004791259765]
+--- CODE [15] ---
+alpha = W_orig_norm / W_hat_norm_before
+print("Adaptive scaling factor α:", alpha.item())
+
+  [STREAM OUT: Adaptive scaling factor α: 1.3934859037399292 ]
+--- CODE [16] ---
+sqrt_alpha = torch.sqrt(alpha)
+
+A_norm = A * sqrt_alpha
+B_norm = B * sqrt_alpha
+
+--- CODE [17] ---
+W_hat_norm = torch.kron(A_norm[0], B_norm[0])
+
+print("Reconstructed normalized shape:", W_hat_norm.shape)
+
+  [STREAM OUT: Reconstructed normalized shape: torch.Size([768, 3072]) ]
+--- CODE [18] ---
+new_norm = torch.norm(W_hat_norm, p="fro")
+
+print("Original Frobenius norm:", W_orig_norm.item())
+print("Normalized Kronecker Frobenius norm:", new_norm.item())
+print("Absolute difference:", abs(W_orig_norm - new_norm).item())
+
+  [STREAM OUT: Original Frobenius norm: 216.8270721435547 Normalized Kronecker Frobenius norm: 216.82717895507812 A]
+--- CODE [19] ---
+import torch.nn as nn
+
+class KroneckerLinear(nn.Module):
+    def __init__(self, A, B):
+        """
+        A: (in_features, out_factor1)  → (768, 1536)
+        B: (1, out_factor2)            → (1, 2)
+        """
+        super().__init__()
+
+        self.A = nn.Parameter(A)   
+        self.B = nn.Parameter(B)   
+
+    def forward(self, x):
+        """
+        x: (batch, seq_len, 768)
+        """
+
+        y = torch.matmul(x, self.A)
+        y = y.unsqueeze(-1) * self.B
+        y = y.reshape(y.shape[
+--- CODE [20] ---
+A_fc = A_norm[0]  
+B_fc = B_norm[0]  
+
+--- CODE [21] ---
+
+original_fc = model.transformer.h[0].mlp.c_fc
+model.transformer.h[0].mlp.c_fc = KroneckerLinear(A_fc, B_fc)
+print(model.transformer.h[0].mlp)
+
+  [STREAM OUT: GPT2MLP(   (c_fc): KroneckerLinear()   (c_proj): Conv1D(nf=768, nx=3072)   (act): NewGELUActivation(]
+--- CODE [22] ---
+test_text = "Artificial intelligence is"
+inputs = tokenizer(test_text, return_tensors="pt")
+
+with torch.no_grad():
+    outputs = model(**inputs)
+
+logits = outputs.logits
+
+print("Logits shape:", logits.shape)
+
+  [STREAM OUT: Logits shape: torch.Size([1, 4, 50257]) ]
+--- CODE [23] ---
+block = model.transformer.h[0]
+proj_weight = block.mlp.c_proj.weight  
+
+print(proj_weight.shape)
+
+  [STREAM OUT: torch.Size([3072, 768]) ]
+--- CODE [24] ---
+A_p, B_p = kronecker_decompose(
+    proj_weight.T,   # transpose
+    m=768,
+    n=1536,
+    k=1
+)
+
+  [STREAM OUT: 768 3072 ]
+--- CODE [25] ---
+W_hat_p = torch.kron(A_p[0], B_p[0])
+
+orig_norm_p = torch.norm(proj_weight.T, p="fro")
+hat_norm_p = torch.norm(W_hat_p, p="fro")
+
+alpha_p = orig_norm_p / hat_norm_p
+sqrt_alpha_p = torch.sqrt(alpha_p)
+
+A_p_norm = A_p * sqrt_alpha_p
+B_p_norm = B_p * sqrt_alpha_p
+
+--- CODE [26] ---
+A_proj = A_p_norm[0] 
+B_proj = B_p_norm[0] 
+
+--- CODE [27] ---
+class KroneckerLinearProj(nn.Module):
+    def __init__(self, A, B):
+        """
+        A: (out_features, mid)  → (768, 1536)
+        B: (1, 2)
+        """
+        super().__init__()
+        self.A = nn.Parameter(A)
+        self.B = nn.Parameter(B)
+
+    def forward(self, x):
+        """
+        x: (batch, seq_len, 3072)
+        """
+       
+        x = x.view(x.shape[0], x.shape[1], -1, 2)
+
+     
+        x = (x * self.B).sum(dim=-1) 
+
+       
+        x = torch.matmul(x, self.A.t())  
+
+        ret
+--- CODE [28] ---
+model.transformer.h[0].mlp.c_proj = KroneckerLinearProj(A_proj, B_proj)
+
+--- CODE [29] ---
+test_text = "Artificial intelligence is"
+inputs = tokenizer(test_text, return_tensors="pt")
+
+with torch.no_grad():
+    outputs = model(**inputs)
+
+print("Logits shape:", outputs.logits.shape)
+
+  [STREAM OUT: Logits shape: torch.Size([1, 4, 50257]) ]
+--- CODE [30] ---
+# for layer_idx in range(len(model.transformer.h)):
+#     block = model.transformer.h[layer_idx]
+
+#     # ---- c_fc ----
+#     W_fc = block.mlp.c_fc.weight
+
+#     A_fc, B_fc = kronecker_decompose(
+#         W_fc,
+#         m=768,
+#         n=1536,
+#         k=1
+#     )
+
+#     W_hat_fc = torch.kron(A_fc[0], B_fc[0])
+#     alpha_fc = torch.norm(W_fc, p="fro") / torch.norm(W_hat_fc, p="fro")
+
+#     A_fc = A_fc * torch.sqrt(alpha_fc)
+#     B_fc = B_fc * torch.sqrt(alpha_fc)
+
+#     block.mlp.c_fc = K
+--- CODE [31] ---
+baseline_model = GPT2LMHeadModel.from_pretrained("gpt2")
+baseline_model.eval()
+  [EXEC RESULT]
+--- CODE [32] ---
+compressed_model = model  
+compressed_model.eval()
+  [EXEC RESULT]
+--- CODE [33] ---
+text = "Artificial intelligence is"
+inputs = tokenizer(text, return_tensors="pt")
+
+with torch.no_grad():
+    logits_base = baseline_model(**inputs).logits
+    logits_comp = compressed_model(**inputs).logits
+
+--- CODE [34] ---
+rel_diff = torch.norm(logits_base - logits_comp) / torch.norm(logits_base)
+print("Relative logit difference:", rel_diff.item())
+
+  [STREAM OUT: Relative logit difference: 0.4264727234840393 ]
+--- CODE [35] ---
+last_base = logits_base[0, -1]
+last_comp = logits_comp[0, -1]
+
+token_base = torch.argmax(last_base).item()
+token_comp = torch.argmax(last_comp).item()
+
+print("Baseline next token:", tokenizer.decode([token_base]))
+print("Compressed next token:", tokenizer.decode([token_comp]))
+
+  [STREAM OUT: Baseline next token:  a Compressed next token: , ]
+--- CODE [36] ---
+k = 10
+
+topk_base = set(torch.topk(last_base, k).indices.tolist())
+topk_comp = set(torch.topk(last_comp, k).indices.tolist())
+
+overlap = len(topk_base & topk_comp)
+
+print(f"Top-{k} overlap:", overlap, "/", k)
+
+  [STREAM OUT: Top-10 overlap: 1 / 10 ]
+

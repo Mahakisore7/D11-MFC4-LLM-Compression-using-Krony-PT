@@ -1,0 +1,8 @@
+{
+  "projectId": "1d4c52aa-f576-4add-aa69-57478f3ad0f2",
+  "createdAt": 1772707565044,
+  "version": "1.0",
+  "startupCommands": [
+    "jupyter notebook --no-browser --port=8888 \"--notebook-dir=C:\\Users\\mahakisore\\Academics\\SEM-4\\MFC-4\\Project\\AI\\LLM-Compression-using-Krony-PT\""
+  ]
+}

@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPT-2 Small — Exploded Architecture Diagram</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --border: #1e2d45;
+    --accent1: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #f59e0b;
+    --accent4: #10b981;
+    --accent5: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --compress: #f97316;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent1);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    border: 1px solid rgba(0,212,255,0.3);
+    padding: 4px 12px;
+    border-radius: 2px;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 800;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent1) 50%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 48px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .stat {
+    flex: 1;
+    padding: 16px 20px;
+    background: var(--surface);
+    text-align: center;
+    transition: background 0.2s;
+  }
+
+  .stat:hover { background: #1a2540; }
+
+  .stat-val {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent1);
+    display: block;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* Main architecture */
+  .arch-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .arch-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Token flow at top */
+  .token-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .token {
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.4);
+    color: var(--accent1);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .token:nth-child(2) { animation-delay: 0.2s; }
+  .token:nth-child(3) { animation-delay: 0.4s; }
+  .token:nth-child(4) { animation-delay: 0.6s; }
+  .token:nth-child(5) { animation-delay: 0.8s; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  .arrow-down {
+    display: flex;
+    justify-content: center;
+    margin: 8px 0;
+    color: var(--muted);
+    font-size: 20px;
+  }
+
+  /* Embedding block */
+  .embed-block {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .embed-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent4);
+    border-radius: 6px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .embed-box:hover {
+    border-color: var(--accent4);
+    background: rgba(16,185,129,0.08);
+    transform: translateX(3px);
+  }
+
+  .embed-name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .embed-dim {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent4);
+    background: rgba(16,185,129,0.1);
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  /* Transformer stack */
+  .transformer-stack {
+    position: relative;
+  }
+
+  .stack-label {
+    position: absolute;
+    left: -12px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-90deg);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+
+  /* Single transformer block */
+  .transformer-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .transformer-block::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent2);
+    transition: width 0.3s;
+  }
+
+  .transformer-block:hover::before,
+  .transformer-block.expanded::before {
+    width: 4px;
+    background: linear-gradient(180deg, var(--accent1), var(--accent2));
+    box-shadow: 0 0 12px var(--accent2);
+  }
+
+  .block-header {
+    display: flex;
+    align-items: center;
+    padding: 14px 20px;
+    gap: 16px;
+    transition: background 0.2s;
+  }
+
+  .transformer-block:hover .block-header,
+  .transformer-block.expanded .block-header {
+    background: rgba(124,58,237,0.08);
+  }
+
+  .block-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    background: rgba(124,58,237,0.15);
+    border: 1px solid rgba(124,58,237,0.3);
+    padding: 3px 8px;
+    border-radius: 3px;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  .block-name {
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .block-params {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .expand-icon {
+    color: var(--muted);
+    font-size: 18px;
+    transition: transform 0.3s;
+  }
+
+  .transformer-block.expanded .expand-icon {
+    transform: rotate(180deg);
+    color: var(--accent1);
+  }
+
+  /* Expanded content */
+  .block-content {
+    display: none;
+    padding: 0 20px 20px;
+    border-top: 1px solid var(--border);
+    animation: slideDown 0.3s ease;
+  }
+
+  .transformer-block.expanded .block-content {
+    display: block;
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Sub-component grid inside block */
+  .sub-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .sub-component {
+    border-radius: 6px;
+    padding: 12px 14px;
+    border: 1px solid transparent;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sub-component::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.06;
+    border-radius: 6px;
+  }
+
+  .sub-component.attn {
+    border-color: rgba(0,212,255,0.2);
+    background: rgba(0,212,255,0.04);
+  }
+
+  .sub-component.attn::after { background: var(--accent1); }
+
+  .sub-component.ffn {
+    border-color: rgba(245,158,11,0.3);
+    background: rgba(245,158,11,0.06);
+  }
+
+  .sub-component.ffn::after { background: var(--accent3); }
+
+  .sub-component.ffn.compressed {
+    border-color: rgba(249,115,22,0.5);
+    background: rgba(249,115,22,0.08);
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.2);
+  }
+
+  .sub-component.ln {
+    border-color: rgba(16,185,129,0.2);
+    background: rgba(16,185,129,0.04);
+  }
+
+  .sub-comp-title {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .comp-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .badge-attn { background: rgba(0,212,255,0.15); color: var(--accent1); }
+  .badge-ffn { background: rgba(245,158,11,0.15); color: var(--accent3); }
+  .badge-compressed { background: rgba(249,115,22,0.2); color: var(--compress); }
+  .badge-ln { background: rgba(16,185,129,0.15); color: var(--accent4); }
+
+  .comp-detail {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .comp-detail span {
+    color: var(--text);
+  }
+
+  /* Residual connection visual */
+  .residual-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(124,58,237,0.06);
+    border-radius: 4px;
+    border: 1px solid rgba(124,58,237,0.15);
+  }
+
+  .residual-arrow {
+    color: var(--accent2);
+    font-size: 14px;
+  }
+
+  .residual-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* Compressed badge overlay */
+  .compressed-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(249,115,22,0.15);
+    border: 1px solid rgba(249,115,22,0.4);
+    color: var(--compress);
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-left: auto;
+  }
+
+  .compressed-tag::before {
+    content: '⊗';
+    font-size: 11px;
+  }
+
+  /* Final LayerNorm + LM Head */
+  .output-section {
+    margin-top: 12px;
+  }
+
+  .output-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent5);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .output-name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .output-dim {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent5);
+    background: rgba(239,68,68,0.1);
+    padding: 2px 8px;
+    border-radius: 3px;
+  }
+
+  /* Compression comparison panel */
+  .comparison-panel {
+    margin-top: 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(249,115,22,0.05);
+  }
+
+  .panel-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--compress);
+  }
+
+  .panel-body {
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .compare-col h4 {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .before h4 { color: var(--muted); }
+  .after h4 { color: var(--compress); }
+
+  .matrix-viz {
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .matrix-label {
+    color: var(--muted);
+    margin-bottom: 8px;
+    font-size: 10px;
+  }
+
+  .matrix-box {
+    display: inline-block;
+    width: 80px;
+    height: 50px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    margin: 0 auto;
+  }
+
+  .matrix-before {
+    background: rgba(100,116,139,0.2);
+    border: 1px solid rgba(100,116,139,0.4);
+    color: var(--muted);
+    width: 100%;
+    height: 60px;
+  }
+
+  .matrix-after-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .matrix-factor {
+    background: rgba(249,115,22,0.15);
+    border: 1px solid rgba(249,115,22,0.4);
+    color: var(--compress);
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 10px;
+  }
+
+  .kron-sym {
+    color: var(--compress);
+    font-size: 18px;
+  }
+
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12px;
+  }
+
+  .metric-key { color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px; }
+  .metric-val { font-weight: 600; font-family: 'Space Mono', monospace; font-size: 11px; }
+  .metric-val.green { color: var(--accent4); }
+  .metric-val.orange { color: var(--compress); }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: #1e2d45;
+    border: 1px solid var(--accent1);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+    max-width: 220px;
+    line-height: 1.6;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+
+  .tooltip-title {
+    color: var(--accent1);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  @media (max-width: 600px) {
+    .sub-grid, .embed-block, .panel-body { grid-template-columns: 1fr; }
+    .stats-bar { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tt-title"></div>
+  <div id="tt-body"></div>
+</div>
+
+<div class="container">
+
+  <header>
+    <div class="tag">Mathematics for Computing · SEM-4</div>
+    <h1>GPT-2 Small<br>Architecture</h1>
+    <p class="subtitle">124M params · 12 layers · 768 hidden dim · Kronecker Compression Target</p>
+  </header>
+
+  <!-- Stats bar -->
+  <div class="stats-bar">
+    <div class="stat">
+      <span class="stat-val">124M</span>
+      <div class="stat-label">Total Params</div>
+    </div>
+    <div class="stat">
+      <span class="stat-val">12</span>
+      <div class="stat-label">Transformer Layers</div>
+    </div>
+    <div class="stat">
+      <span class="stat-val">768</span>
+      <div class="stat-label">Hidden Dim</div>
+    </div>
+    <div class="stat">
+      <span class="stat-val">12</span>
+      <div class="stat-label">Attn Heads</div>
+    </div>
+    <div class="stat">
+      <span class="stat-val">3072</span>
+      <div class="stat-label">FFN Dim</div>
+    </div>
+    <div class="stat">
+      <span class="stat-val">45%</span>
+      <div class="stat-label">FFN of Total</div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent4)"></div> Embeddings
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent1)"></div> Self-Attention
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent3)"></div> Feed-Forward (FFN)
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--compress)"></div> Kronecker-Compressed FFN
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent2)"></div> Residual + LayerNorm
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent5)"></div> Output Head
+    </div>
+    <div style="margin-left:auto; font-size:11px; color:var(--muted); font-family:'Space Mono',monospace;">
+      ↓ Click any layer to expand
+    </div>
+  </div>
+
+  <!-- Input Tokens -->
+  <div class="arch-title">Input</div>
+  <div class="token-flow">
+    <div class="token">"The"</div>
+    <div class="token">"quick"</div>
+    <div class="token">"brown"</div>
+    <div class="token">"fox"</div>
+    <div class="token">...</div>
+  </div>
+  <div class="arrow-down">↓</div>
+
+  <!-- Embeddings -->
+  <div class="arch-title">Embeddings</div>
+  <div class="embed-block">
+    <div class="embed-box"
+         onmouseenter="showTip(event, 'Token Embedding (wte)', '50,257 vocab × 768 dim\n= 38.6M params\nLearned lookup table mapping each token ID to a 768-dim vector.')"
+         onmouseleave="hideTip()">
+      <span class="embed-name">Token Embedding (wte)</span>
+      <span class="embed-dim">50257 × 768</span>
+    </div>
+    <div class="embed-box"
+         onmouseenter="showTip(event, 'Positional Embedding (wpe)', '1,024 positions × 768 dim\n= 786K params\nLearned positional encodings for up to 1024 context length.')"
+         onmouseleave="hideTip()">
+      <span class="embed-name">Positional Embedding (wpe)</span>
+      <span class="embed-dim">1024 × 768</span>
+    </div>
+  </div>
+  <div class="arrow-down">↓ <span style="font-size:11px;color:var(--muted);margin-left:8px;font-family:'Space Mono',monospace">Add + Dropout(0.1)</span></div>
+
+  <!-- Transformer Stack -->
+  <div class="arch-title" style="margin-top:20px">Transformer Blocks × 12 <span style="color:var(--compress);font-size:10px;margin-left:12px">← FFN layers are Kronecker-compressed</span></div>
+
+  <div class="transformer-stack" id="stack">
+    <!-- Blocks rendered by JS -->
+  </div>
+
+  <div class="arrow-down" style="margin-top:12px">↓</div>
+
+  <!-- Output -->
+  <div class="arch-title">Output</div>
+  <div class="output-section">
+    <div class="output-block"
+         onmouseenter="showTip(event,'Final LayerNorm','Normalizes the final hidden state before projection.\nAffine params: 768 × 2 = 1,536')"
+         onmouseleave="hideTip()">
+      <span class="output-name">LayerNorm (ln_f)</span>
+      <span class="output-dim">768</span>
+    </div>
+    <div class="output-block"
+         onmouseenter="showTip(event,'LM Head (lm_head)','Projects 768-dim hidden state to 50,257 vocab logits.\nWeight tied with token embedding → 0 extra params.')"
+         onmouseleave="hideTip()">
+      <span class="output-name">LM Head — Linear Projection</span>
+      <span class="output-dim">768 → 50,257</span>
+    </div>
+  </div>
+  <div class="arrow-down">↓</div>
+  <div style="text-align:center; padding:12px 0;">
+    <div style="display:inline-flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+      <div class="token" style="background:rgba(16,185,129,0.1); border-color:rgba(16,185,129,0.4); color:var(--accent4)">Logits [50,257]</div>
+      <div class="token" style="background:rgba(16,185,129,0.1); border-color:rgba(16,185,129,0.4); color:var(--accent4)">Softmax → Next Token</div>
+    </div>
+  </div>
+
+  <!-- Compression Detail Panel -->
+  <div class="comparison-panel">
+    <div class="panel-header">
+      <span style="font-size:18px">⊗</span>
+      <div class="panel-title">Kronecker Compression — What Changes in the FFN</div>
+    </div>
+    <div class="panel-body">
+      <div class="compare-col before">
+        <h4>Original FFN Weights</h4>
+        <div class="matrix-viz">
+          <div class="matrix-label">c_fc.weight</div>
+          <div class="matrix-before" style="display:flex;align-items:center;justify-content:center;">
+            W ∈ ℝ<sup>3072×768</sup>
+          </div>
+          <div style="margin-top:6px;font-size:10px;color:var(--muted)">2,359,296 values</div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-key">c_fc params</span>
+          <span class="metric-val">2.36M</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-key">c_proj params</span>
+          <span class="metric-val">2.36M</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-key">FFN per layer</span>
+          <span class="metric-val">4.72M</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-key">All 12 FFN layers</span>
+          <span class="metric-val">56.6M</span>
+        </div>
+      </div>
+      <div class="compare-col after">
+        <h4>Kronecker-Compressed FFN</h4>
+        <div class="matrix-viz">
+          <div class="matrix-label">c_fc → A ⊗ B</div>
+          <div class="matrix-after-wrap">
+            <div class="matrix-factor">A<br>48×12</div>
+            <div class="kron-sym">⊗</div>
+            <div class="matrix-factor">B<br>64×64</div>
+          </div>
+          <div style="margin-top:6px;font-size:10px;color:var(--compress)">576 + 4,096 = 4,672 values</div>
+        </div>
+        <div class="metric-row">
+          <span class="metric-key">c_fc params</span>
+          <span class="metric-val orange">4,672</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-key">c_proj params</span>
+          <span class="metric-val orange">4,672</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-key">FFN per layer</span>
+          <span class="metric-val orange">9,344</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-key">Total model size</span>
+          <span class="metric-val green">67.9M (↓45%)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  const LAYERS = 12;
+
+  // Attention params per head: Q,K,V = 768×64 each, O = 768×768
+  // c_attn: 768 → 2304 = 1,769,472; c_proj: 768×768 = 589,824
+  const attnParams = 2359296; // c_attn+c_proj total
+
+  function formatM(n) {
+    if (n >= 1e6) return (n/1e6).toFixed(2)+'M';
+    if (n >= 1e3) return (n/1e3).toFixed(0)+'K';
+    return n;
+  }
+
+  function buildBlock(i) {
+    const isFirst = i === 0;
+    const isLast = i === 11;
+    const highlight = isFirst || isLast ? ' style="border-color:rgba(249,115,22,0.25)"' : '';
+
+    return `
+    <div class="transformer-block" id="block-${i}"${highlight} onclick="toggleBlock(${i})">
+      <div class="block-header">
+        <span class="block-num">Layer ${i}</span>
+        <span class="block-name">GPT2Block</span>
+        <div class="compressed-tag">Kronecker FFN</div>
+        <span class="block-params">~${formatM(attnParams + 9344 + 1536*2)} params</span>
+        <span class="expand-icon">▾</span>
+      </div>
+      <div class="block-content">
+        <div class="sub-grid">
+
+          <!-- LayerNorm 1 -->
+          <div class="sub-component ln"
+               onmouseenter="showTip(event,'LayerNorm (ln_1)','Pre-attention layer normalization.\nAffine: γ, β ∈ ℝ⁷⁶⁸\nParams: 1,536')"
+               onmouseleave="hideTip()">
+            <div class="sub-comp-title">
+              LayerNorm (ln_1)
+              <span class="comp-badge badge-ln">LN</span>
+            </div>
+            <div class="comp-detail">
+              dim: <span>768</span><br>
+              params: <span>1,536</span><br>
+              eps: <span>1e-5</span>
+            </div>
+          </div>
+
+          <!-- Self-Attention -->
+          <div class="sub-component attn"
+               onmouseenter="showTip(event,'GPT2Attention','Multi-head self-attention.\n• c_attn: 768→2304 (Q,K,V fused)\n• c_proj: 768→768\n• 12 heads × 64 head_dim\n• Causal mask (decoder-only)\nParams: 2.36M')"
+               onmouseleave="hideTip()">
+            <div class="sub-comp-title">
+              Self-Attention
+              <span class="comp-badge badge-attn">ATTN</span>
+            </div>
+            <div class="comp-detail">
+              heads: <span>12</span><br>
+              head_dim: <span>64</span><br>
+              c_attn: <span>768→2304</span><br>
+              c_proj: <span>768→768</span><br>
+              params: <span>2.36M</span>
+            </div>
+          </div>
+
+          <!-- LayerNorm 2 -->
+          <div class="sub-component ln"
+               onmouseenter="showTip(event,'LayerNorm (ln_2)','Pre-FFN layer normalization.\nAffine: γ, β ∈ ℝ⁷⁶⁸\nParams: 1,536')"
+               onmouseleave="hideTip()">
+            <div class="sub-comp-title">
+              LayerNorm (ln_2)
+              <span class="comp-badge badge-ln">LN</span>
+            </div>
+            <div class="comp-detail">
+              dim: <span>768</span><br>
+              params: <span>1,536</span>
+            </div>
+          </div>
+
+          <!-- FFN (Compressed) -->
+          <div class="sub-component ffn compressed"
+               onmouseenter="showTip(event,'GPT2MLP — Kronecker Compressed','Original: W_fc ∈ ℝ³⁰⁷²ˣ⁷⁶⁸ (2.36M params)\nCompressed: A(48×12) ⊗ B(64×64) = 4,672 params\n\nForward pass:\nx → A·x → ⊗B → GELU → proj\n\nReduction: 99.8% per weight matrix!')"
+               onmouseleave="hideTip()">
+            <div class="sub-comp-title">
+              FFN (MLP)
+              <span class="comp-badge badge-compressed">⊗ Compressed</span>
+            </div>
+            <div class="comp-detail">
+              c_fc: <span>A(48×12)⊗B(64×64)</span><br>
+              activation: <span>GELU</span><br>
+              c_proj: <span>A(12×48)⊗B(64×64)</span><br>
+              orig params: <span style="text-decoration:line-through;color:var(--muted)">4.72M</span><br>
+              kron params: <span style="color:var(--compress)">9,344</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Residual connections -->
+        <div class="residual-indicator">
+          <span class="residual-arrow">↩</span>
+          <span class="residual-text">Residual connections: x = x + Attn(LN1(x)) &nbsp;|&nbsp; x = x + FFN(LN2(x))</span>
+        </div>
+
+        ${i === 0 ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2);border-radius:4px;font-family:'Space Mono',monospace;font-size:10px;color:var(--compress)">⚠ Layer 0 has highest sensitivity to compression (logit diff: 0.3034)</div>` : ''}
+        ${i === 10 ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2);border-radius:4px;font-family:'Space Mono',monospace;font-size:10px;color:var(--compress)">⚠ Layer 10 has 2nd highest sensitivity (logit diff: 0.2208)</div>` : ''}
+        ${i === 11 ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2);border-radius:4px;font-family:'Space Mono',monospace;font-size:10px;color:var(--compress)">⚠ Layer 11 sensitivity: 0.1573</div>` : ''}
+      </div>
+    </div>`;
+  }
+
+  // Render all blocks
+  const stack = document.getElementById('stack');
+  for (let i = 0; i < LAYERS; i++) {
+    stack.innerHTML += buildBlock(i);
+  }
+
+  function toggleBlock(i) {
+    const el = document.getElementById(`block-${i}`);
+    el.classList.toggle('expanded');
+  }
+
+  // Tooltip
+  function showTip(e, title, body) {
+    const tt = document.getElementById('tooltip');
+    document.getElementById('tt-title').textContent = title;
+    document.getElementById('tt-body').textContent = body;
+    tt.style.display = 'block';
+    moveTip(e);
+  }
+
+  function moveTip(e) {
+    const tt = document.getElementById('tooltip');
+    let x = e.clientX + 16;
+    let y = e.clientY - 10;
+    if (x + 230 > window.innerWidth) x = e.clientX - 240;
+    tt.style.left = x + 'px';
+    tt.style.top = y + 'px';
+  }
+
+  function hideTip() {
+    document.getElementById('tooltip').style.display = 'none';
+  }
+
+  document.addEventListener('mousemove', (e) => {
+    const tt = document.getElementById('tooltip');
+    if (tt.style.display === 'block') moveTip(e);
+  });
+
+  // Auto-expand first block on load
+  setTimeout(() => {
+    document.getElementById('block-0').classList.add('expanded');
+  }, 600);
+</script>
+</body>
+</html>

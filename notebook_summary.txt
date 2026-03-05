@@ -1,0 +1,39 @@
+--- Adaptive Normalization.ipynb ---
+
+--- Baseline_GPT2small.ipynb ---
+
+--- Comparisons.ipynb ---
+
+--- DialoGPT-small_implementation.ipynb ---
+
+--- Final-Plots.ipynb ---
+
+--- gpt2_small_Initial_implementation.ipynb ---
+
+--- GPT2_Small_New_Logit_Score.ipynb ---
+
+--- gpt2_small_tunning_prompt_template.ipynb ---
+
+--- gpt2_small_vs dialoGPT_fail.ipynb ---
+
+--- gpt2_small_vs_dialo_gpt.ipynb ---
+
+--- Logit_Score_Calculation_Layer_by-layer.ipynb ---
+$Ax=b$
+
+--- Naive_Bayes.ipynb ---
+
+--- Pre_Training.ipynb ---
+
+--- Rank-2_Compression.ipynb ---
+
+--- tuned_gpt2_small.ipynb ---
+
+--- Understanding.ipynb ---
+
+--- Untitled.ipynb ---
+
+--- Untitled1.ipynb ---
+
+--- Wiki_text.ipynb ---
+
