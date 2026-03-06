@@ -32,3 +32,40 @@ results/
 plots/
 figures/
 
+# Python environment and tooling
+*.egg-info/
+build/
+dist/
+.eggs/
+*.egg
+*.whl
+.env
+.env.local
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Manim generated media
+media/
+videos/
+
+# Misc
+*.py[cod]
+*$py.class
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Idea & VSCode remains
+.vscode/
+.idea/
+
+
