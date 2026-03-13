@@ -13,8 +13,10 @@ __pycache__/
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
+
 # Ignore log files
 *.log
+
 # Ignore dataset files
 data/
 data_raw/
@@ -47,9 +49,6 @@ dist/
 coverage.xml
 htmlcov/
 
-# Jupyter Notebook
-.ipynb_checkpoints/
-
 # Manim generated media
 media/
 videos/
@@ -58,14 +57,10 @@ videos/
 *.py[cod]
 *$py.class
 
-# MacOS
-.DS_Store
-
 # Windows
 Thumbs.db
 
-# Idea & VSCode remains
-.vscode/
-.idea/
+# Additional folders
+.orchids/
 
 
