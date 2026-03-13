@@ -17,8 +17,7 @@
 
 <br/>
 
-> **22MAT230 – Mathematics for Computing 4 | Semester 4 Project**
-> **Team D11 – Amrita Vishwa Vidyapeetham**
+**Amrita Vishwa Vidyapeetham · Department of AI & Data Science · Team D11**
 
 | Member | Roll No. |
 |:---:|:---:|
@@ -63,7 +62,7 @@ This project replicates and extends **[Krony-PT (arXiv:2412.12351)](https://arxi
 
 Instead of storing a full weight matrix $W \in \mathbb{R}^{m \times n}$, we approximate it as:
 
-$$\boxed{W \approx A \otimes B}$$
+$$W \approx A \otimes B$$
 
 where $A \in \mathbb{R}^{m_1 \times n_1}$, $B \in \mathbb{R}^{m_2 \times n_2}$, with $m = m_1 m_2$ and $n = n_1 n_2$.
 
@@ -152,7 +151,7 @@ $$W \xrightarrow{\mathcal{R}} \tilde{W} \in \mathbb{R}^{(m_1 n_1) \times (m_2 n_
 
 $$\tilde{W} \approx \sigma_1 u_1 v_1^\top \quad \text{(rank-1 SVD)}$$
 
-$$A = \sqrt{\sigma_1} \cdot \operatorname{reshape}(u_1,\, m_1,\, n_1), \qquad B = \sqrt{\sigma_1} \cdot \operatorname{reshape}(v_1,\, m_2,\, n_2)$$
+$$A = \sqrt{\sigma_1} \cdot \mathrm{reshape}(u_1,\, m_1,\, n_1), \qquad B = \sqrt{\sigma_1} \cdot \mathrm{reshape}(v_1,\, m_2,\, n_2)$$
 
 ### Code
 
@@ -209,7 +208,7 @@ $$\alpha = \frac{\|W\|_F}{\|A \otimes B\|_F}, \qquad A \leftarrow \sqrt{\alpha} 
 Rescales factors to preserve the weight energy of $W$ without adding any parameters.
 
 ### Sparse Residual Correction *(Our Extension)*
-$$W_{\text{ours}} = \alpha(A \otimes B) + S, \quad S = \operatorname{top\text{-}}k\%(W - \alpha(A \otimes B))$$
+$$W_{\text{ours}} = \alpha(A \otimes B) + S, \quad S = \mathrm{top}\text{-}k\%(W - \alpha(A \otimes B))$$
 Adds back the most important approximation errors as a sparse correction. Achieves **47% lower Frobenius error** than the paper's method.
 
 ---
@@ -341,7 +340,7 @@ This is a **zero-cost post-processing step** — no additional parameters, no tr
 For each of the 12 transformer layers, compress **only that layer** (Rank-1, all others remain full precision), then measure:
 
 **Relative logit difference vs baseline:**
-$$\operatorname{diff} = \frac{\|f_{\text{baseline}}(x) - f_{\text{compressed}}(x)\|_2}{\|f_{\text{baseline}}(x)\|_2}$$
+$$\mathrm{diff} = \frac{\|f_{\text{baseline}}(x) - f_{\text{compressed}}(x)\|_2}{\|f_{\text{baseline}}(x)\|_2}$$
 
 **Perplexity** on WikiText-2.
 
@@ -607,9 +606,9 @@ Triple Kronecker achieves **~5,890× per-layer parameter reduction** at the cost
 
 We proposed and implemented a **Sparse Residual Correction** not present in the original Krony-PT paper:
 
-$$W_{\text{ours}} = \underbrace{\alpha (A \otimes B)}_{\text{Kronecker approx.}} + \underbrace{S}_{\text{sparse residual}}$$
+$$W_{\text{ours}} = \alpha (A \otimes B) + S$$
 
-where $S$ retains only the top-$k\%$ magnitude entries of the approximation residual $R = W - \alpha(A \otimes B)$.
+where $S = \mathrm{top}\text{-}k\%(W - \alpha(A \otimes B))$ keeps only the highest-magnitude residual entries.
 
 ### Results (4×4 toy matrix — verified in MATLAB and Python)
 
