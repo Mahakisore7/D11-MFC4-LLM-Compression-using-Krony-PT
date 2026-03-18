@@ -664,26 +664,54 @@ KronyPT-81M was trained for 3 full epochs on **OpenWebText (~8 billion tokens)**
 ```
 LLM-Compression-using-Krony-PT/
 │
-├── 📓 notebooks/
-│   ├── GPT2_Kronecker_Compression_Documentation_FIXED.ipynb  ← Main 6-phase notebook
-│   ├── Comparisons.ipynb                                      ← Parameter / latency / size benchmarks
-│   ├── Pre_Training.ipynb                                     ← Fine-tuning recovery experiments
-│   ├── DistilGPT2_Comparison.ipynb                           ← vs Knowledge Distillation
-│   ├── Rank1_vs_Rank2_Comparison.ipynb                       ← Rank extension comparison
-│   └── Extras_Plots.ipynb                                     ← AxB vs AxBxC · Rank-R sweep
+├── 📁 Documentation/                        ← Exported PDFs & supporting visuals
+│   ├── Adaptive Normalization.pdf
+│   ├── Comparisons.pdf                      ← Benchmark notebook export
+│   ├── DistilGPT2_Comparison.ipynb
+│   ├── Final-Plots.pdf                      ← Layer sensitivity notebook export
+│   ├── GPT2_Kronecker_Compression_Documentation_FIXED (1).ipynb  ← Main notebook (copy)
+│   ├── Rank1_vs_Rank2_Comparison.ipynb
+│   ├── Untitled.pdf
+│   ├── distilgpt2_comparison.png
+│   ├── gpt2_exploded_diagram.html
+│   └── rank1_vs_rank2_comparison.png
 │
-├── 📄 docs/
-│   ├── Krony-PT-PPT.pdf                ← Presentation slides (Team D11)
-│   ├── Comparisons.pdf                 ← Benchmark notebook export
-│   ├── Final-Plots.pdf                 ← Layer sensitivity notebook export
-│   ├── Pre_Training.pdf                ← Fine-tuning notebook export
-│   └── DistilGPT2_Comparison.pdf
+├── 📁 Jupyter/                              ← All experiment notebooks
+│   ├── Adaptive Normalization.ipynb         ← Phase 3: alpha rescaling
+│   ├── Baseline_GPT2small.ipynb             ← Phase 1: baseline eval
+│   ├── Comparisons.ipynb                    ← Parameter / latency / size benchmarks
+│   ├── Extras_Plots.ipynb                   ← AxB vs AxBxC · Rank-R sweep ★
+│   ├── Final-Plots.ipynb                    ← Layer sensitivity plots
+│   ├── GPT2_Kronecker_Compression_Documentation_FIXED (1).ipynb  ← Main 6-phase notebook ★
+│   ├── Isolated vs Cumulative Compression.ipynb
+│   ├── Logit_Score_Calculation_Layer_by-layer.ipynb
+│   ├── Pre_Training.ipynb                   ← Fine-tuning recovery ★
+│   ├── Rank-2_Compression.ipynb             ← Phase 6: Rank-2 extension
+│   ├── Rank1_vs_Rank2_Comparison.ipynb      ← Rank-1 vs Rank-2 dashboard ★
+│   ├── Retraining Loss.ipynb
+│   ├── Singular Value Check and A(kron)B(kron)C.ipynb  ← Triple Kronecker
+│   ├── Three_Factor_Compression.ipynb
+│   └── ...                                  ← Additional exploration notebooks
 │
-├── 🐍 scripts/
-│   ├── step1_paper_replication.py      ← Van Loan math verification (MATLAB & Python)
-│   └── step2_sparse_residual.py        ← Sparse Residual 47% improvement demo
+├── 📁 Matlab/                               ← MATLAB replication & sparse residual
+│   ├── Basic_Krony_PT.mlx
+│   ├── Final.mlx
+│   ├── Krony_PT_Alpha_and_Prunning.mlx      ← Alpha normalization + pruning baseline
+│   ├── Krony_PT_Replication.mlx             ← Full Van Loan replication
+│   └── Sparse_Matrix_Method.mlx             ← Sparse residual verification ★
 │
-├── 🖼 assets/                          ← All result plots used in this README
+├── 📁 Python/
+│   ├── 📁 New/                              ← Current working scripts
+│   │   ├── step2_sparse_residual.py         ← Sparse Residual 47% improvement demo ★
+│   │   ├── compression_agent.py
+│   │   ├── chat_with_gpt2.py
+│   │   └── test_step1_rearrangement.py      ← Van Loan math unit test
+│   ├── 📁 Old/                              ← Archived earlier versions
+│   └── 📁 Visualizations/                   ← Manim & matplotlib animation scripts
+│       └── gpt2_visualization/
+│           └── gpt2_research_animation/     ← GPT-2 architecture animations
+│
+├── 📁 assets/                               ← All result plots used in this README
 │   ├── slide_param_inference_results.png
 │   ├── slide_model_size_results.png
 │   ├── slide_efficiency_dashboard.png
@@ -705,10 +733,15 @@ LLM-Compression-using-Krony-PT/
 │   ├── time_vs_compression.png
 │   └── pareto_frontier.png
 │
+├── ⚙️ .gitignore
+├── 📕 Base_Paper.pdf                        ← Krony-PT reference paper
+├── 📕 MFC_4__Kronecker_Product_.pdf         ← Course project report
+├── 📄 LICENSE
 └── 📖 README.md
 ```
 
-> **To render images on GitHub:** Push the `assets/` folder to your repo root alongside `README.md`. All image references in this README use the path `assets/filename.png`.
+> **★** = primary notebooks to run for reproducing reported results.  
+> **To render images on GitHub:** The `assets/` folder is already at the repo root — all image paths in this README reference `assets/filename.png` and will render automatically.
 
 ---
 
@@ -725,45 +758,50 @@ cd LLM-Compression-using-Krony-PT
 
 ```bash
 pip install torch transformers datasets einops matplotlib seaborn pandas accelerate
+# Or use the included requirements file:
+pip install -r Python/requirements.txt
 ```
 
 ### 3. Verify the math (no GPU needed, runs in seconds)
 
 ```bash
-python scripts/step2_sparse_residual.py
+python Python/New/step2_sparse_residual.py
 # Expected: SUCCESS: Python proves your method wins!
 ```
 
 ### 4. Run the main 6-phase documentation notebook
 
 ```bash
-jupyter notebook notebooks/GPT2_Kronecker_Compression_Documentation_FIXED.ipynb
+jupyter notebook "Jupyter/GPT2_Kronecker_Compression_Documentation_FIXED (1).ipynb"
 ```
 
 ### 5. Run individual experiment notebooks
 
 ```bash
-jupyter notebook notebooks/Comparisons.ipynb              # Compression benchmarks
-jupyter notebook notebooks/Pre_Training.ipynb             # Fine-tuning recovery
-jupyter notebook notebooks/Rank1_vs_Rank2_Comparison.ipynb   # Rank comparison
-jupyter notebook notebooks/Extras_Plots.ipynb             # AxB vs AxBxC full sweep
+jupyter notebook Jupyter/Baseline_GPT2small.ipynb           # Phase 1: baseline eval
+jupyter notebook Jupyter/Comparisons.ipynb                  # Compression benchmarks
+jupyter notebook Jupyter/Pre_Training.ipynb                 # Fine-tuning recovery
+jupyter notebook Jupyter/Rank1_vs_Rank2_Comparison.ipynb    # Rank-1 vs Rank-2
+jupyter notebook Jupyter/Extras_Plots.ipynb                 # AxB vs AxBxC full sweep
+jupyter notebook "Jupyter/Isolated vs Cumulative Compression.ipynb"   # Sensitivity
+jupyter notebook "Jupyter/Singular Value Check and A(kron)B(kron)C.ipynb"  # Triple Kronecker
 ```
 
 ### Approximate runtimes (RTX 4050 Laptop GPU, 6GB VRAM)
 
-| Experiment | Time |
-|---|---|
-| Baseline PPL eval (~500 batches, WikiText-2) | ~2 min |
-| Rank-1 compression all 12 layers (SVD only) | ~15 sec |
-| Forward pass latency benchmark (50 runs) | ~30 sec |
-| Fine-tuning 12-layer model (2ep, 2000 samples) | ~8 min |
-| Fine-tuning 6-layer model (5ep, 2000 samples) | ~10 min |
-| Layer sensitivity (isolated, 12 models × eval) | ~25 min |
-| Cumulative sensitivity (13 models × eval) | ~30 min |
-| Extras: AxB vs AxBxC rank sweep | ~20 min |
-| **Total end-to-end** | **~90–100 min** |
+| Experiment | Notebook | Time |
+|---|---|---|
+| Baseline PPL eval (~500 batches, WikiText-2) | `Baseline_GPT2small.ipynb` | ~2 min |
+| Rank-1 compression all 12 layers (SVD only) | `Comparisons.ipynb` | ~15 sec |
+| Forward pass latency benchmark (50 runs) | `Comparisons.ipynb` | ~30 sec |
+| Fine-tuning 12-layer model (2ep, 2000 samples) | `Pre_Training.ipynb` | ~8 min |
+| Fine-tuning 6-layer model (5ep, 2000 samples) | `Pre_Training.ipynb` | ~10 min |
+| Layer sensitivity (isolated, 12 models × eval) | `Final-Plots.ipynb` | ~25 min |
+| Cumulative sensitivity (13 models × eval) | `Isolated vs Cumulative Compression.ipynb` | ~30 min |
+| AxB vs AxBxC rank sweep | `Extras_Plots.ipynb` | ~20 min |
+| **Total end-to-end** | | **~90–100 min** |
 
-> **Tip for reproducibility:** Wrap experiment blocks with `import time; t = time.time(); ...; print(f"{time.time()-t:.1f}s")` or use `%%time` in Jupyter to log exact timings per cell.
+> **Tip for reproducibility:** Use `%%time` at the top of Jupyter cells, or wrap blocks with `import time; t = time.time(); ...; print(f"{time.time()-t:.1f}s")` to log exact timings.
 
 ---
 
