@@ -1,3 +1,11 @@
+<br/>
+
+<div align="center">
+<img src="assets/Amrita-vishwa-vidyapeetham-logo.svg.png" width="820"/>
+</div>
+
+<br/>
+
 <div align="center">
 
 # 🧠 LLM Compression via Kronecker Product Decomposition
