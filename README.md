@@ -1,9 +1,7 @@
 <br/>
-
 <div align="center">
 <img src="assets/Amrita-vishwa-vidyapeetham-logo.svg.png" width="820"/>
 </div>
-
 <br/>
 
 <div align="center">
@@ -27,11 +25,11 @@
 
 **Amrita Vishwa Vidyapeetham · Department of AI & Data Science · Team D11**
 
-| Member | Roll No. |
-|:---:|:---:|
-| Hemanth SN | CB.SC.U4AIE24321 |
-| Mahakisore M | CB.SC.U4AIE24333 |
-| Yashwanth B | CB.SC.U4AIE24360 |
+| Member | Roll No. | Email |
+|:---:|:---:|:---:|
+| Hemanth SN | CB.SC.U4AIE24321 | cb.sc.u4aie24321@cb.students.amrita.edu |
+| Mahakisore M | CB.SC.U4AIE24333 | cb.sc.u4aie24333@cb.students.amrita.edu |
+| Yashwanth B | CB.SC.U4AIE24360 | cb.sc.u4aie24360@cb.students.amrita.edu |
 
 </div>
 
